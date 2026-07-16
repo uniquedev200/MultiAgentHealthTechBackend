@@ -32,6 +32,7 @@ export default function EmergencyDetailPage() {
   const [requiredResources, setRequiredResources] = useState("icu_bed,staff");
   const [addingCase, setAddingCase] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [resolved, setResolved] = useState(false);
   const [error, setError] = useState("");
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
@@ -137,6 +138,7 @@ export default function EmergencyDetailPage() {
           })
           .catch(() => {});
       } else if (eventType === "emergency_resolved") {
+        setResolved(true);
         loadState();
       }
     });
@@ -181,6 +183,7 @@ export default function EmergencyDetailPage() {
     setResolving(true);
     try {
       await api.resolveEmergency(emergencyId);
+      setResolved(true);
       closeSSE.current?.();
     } catch (err: any) {
       setError(err.message);
@@ -236,12 +239,15 @@ export default function EmergencyDetailPage() {
           >
             {connected ? "● Connected" : "○ Disconnected"}
           </span>
+          {resolved && (
+            <span className="badge badge-green">✅ Resolved</span>
+          )}
           <button
             onClick={handleResolve}
-            disabled={resolving}
-            className="btn-secondary"
+            disabled={resolving || resolved}
+            className="btn-secondary disabled:opacity-50"
           >
-            {resolving ? "Resolving..." : "✅ Resolve"}
+            {resolving ? "Resolving..." : resolved ? "Resolved" : "✅ Resolve"}
           </button>
         </div>
       </div>

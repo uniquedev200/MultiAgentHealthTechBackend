@@ -3,12 +3,18 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api";
 import type { Emergency } from "../types";
 
+const VALID_DEPARTMENTS = [
+  "Emergency", "ICU", "Surgery", "Radiology", "Cardiology",
+  "Neurology", "Oncology", "Pediatrics", "Orthopedics", "Trauma",
+  "Anesthesiology", "Internal Medicine", "Laboratory", "Pharmacy",
+];
+
 export default function EmergenciesPage() {
   const navigate = useNavigate();
   const [emergencies, setEmergencies] = useState<Emergency[]>([]);
   const [loading, setLoading] = useState(true);
   const [scope, setScope] = useState<"individual" | "mass">("individual");
-  const [departments, setDepartments] = useState("Emergency,ICU,Surgery");
+  const [selectedDepts, setSelectedDepts] = useState<string[]>(["Emergency", "ICU", "Surgery"]);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -32,22 +38,24 @@ export default function EmergenciesPage() {
     setError("");
     setCreating(true);
     try {
-      const deptList = departments
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (deptList.length === 0) {
-        setError("Enter at least one department");
+      if (selectedDepts.length === 0) {
+        setError("Select at least one department");
         setCreating(false);
         return;
       }
-      const emergency = await api.declareEmergency(scope, deptList);
+      const emergency = await api.declareEmergency(scope, selectedDepts);
       navigate(`/emergencies/${emergency.id}`);
     } catch (err: any) {
       setError(err.message || "Failed to declare emergency");
     } finally {
       setCreating(false);
     }
+  }
+
+  function toggleDept(dept: string) {
+    setSelectedDepts((prev) =>
+      prev.includes(dept) ? prev.filter((d) => d !== dept) : [...prev, dept]
+    );
   }
 
   return (
@@ -177,15 +185,27 @@ export default function EmergenciesPage() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Departments (comma-separated)
+              Departments
             </label>
-            <input
-              type="text"
-              className="input"
-              value={departments}
-              onChange={(e) => setDepartments(e.target.value)}
-              placeholder="Emergency,ICU,Surgery"
-            />
+            <div className="flex flex-wrap gap-2">
+              {VALID_DEPARTMENTS.map((dept) => (
+                <button
+                  key={dept}
+                  type="button"
+                  onClick={() => toggleDept(dept)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition-all ${
+                    selectedDepts.includes(dept)
+                      ? "border-brand-500 bg-brand-50 text-brand-700 font-medium"
+                      : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"
+                  }`}
+                >
+                  {selectedDepts.includes(dept) ? "✓ " : ""}{dept}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-400 mt-1.5">
+              Select departments this emergency covers
+            </p>
           </div>
 
           <button type="submit" disabled={creating} className="btn-danger w-full">

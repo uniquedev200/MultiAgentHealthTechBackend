@@ -228,6 +228,12 @@ app.get("/emergencies/:id/stream", async (req, res) => {
 });
 
 // ── POST /emergencies — declare emergency ─────────────────────
+const VALID_DEPARTMENTS = [
+  "Emergency", "ICU", "Surgery", "Radiology", "Cardiology",
+  "Neurology", "Oncology", "Pediatrics", "Orthopedics", "Trauma",
+  "Anesthesiology", "Internal Medicine", "Laboratory", "Pharmacy",
+];
+
 app.post("/emergencies", async (req, res) => {
   try {
     const { scope, department_reach } = req.body;
@@ -240,6 +246,15 @@ app.post("/emergencies", async (req, res) => {
       return res
         .status(400)
         .json({ error: "department_reach must be a non-empty array of strings" });
+    }
+
+    const invalidDepts = department_reach.filter(
+      (d: string) => !VALID_DEPARTMENTS.includes(d)
+    );
+    if (invalidDepts.length > 0) {
+      return res.status(400).json({
+        error: `Invalid department(s): ${invalidDepts.join(", ")}. Valid departments: ${VALID_DEPARTMENTS.join(", ")}`,
+      });
     }
 
     const emergency = await createEmergency(
