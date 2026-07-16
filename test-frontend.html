@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Siege — Frontend Integration Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Consolas', 'Monaco', monospace; background: #0a0a0a; color: #e0e0e0; padding: 20px; }
+    h1 { color: #00ff88; margin-bottom: 4px; font-size: 20px; }
+    h2 { color: #00aaff; margin: 20px 0 8px 0; font-size: 14px; border-bottom: 1px solid #333; padding-bottom: 4px; }
+    .subtitle { color: #666; font-size: 12px; margin-bottom: 20px; }
+    #log { background: #111; border: 1px solid #333; border-radius: 4px; padding: 12px; max-height: 500px; overflow-y: auto; font-size: 12px; line-height: 1.6; }
+    .log-entry { padding: 2px 0; }
+    .log-ok { color: #00ff88; }
+    .log-err { color: #ff4444; }
+    .log-info { color: #00aaff; }
+    .log-data { color: #ffaa00; }
+    .log-event { color: #ff44ff; font-weight: bold; }
+    .log-time { color: #555; }
+    .controls { margin: 16px 0; display: flex; gap: 8px; flex-wrap: wrap; }
+    button { background: #1a1a2e; color: #00aaff; border: 1px solid #00aaff; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-family: inherit; font-size: 12px; }
+    button:hover { background: #00aaff; color: #000; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    input, select { background: #1a1a2e; color: #e0e0e0; border: 1px solid #444; padding: 6px 10px; border-radius: 4px; font-family: inherit; font-size: 12px; }
+    label { color: #888; font-size: 11px; }
+    .field { display: flex; flex-direction: column; gap: 2px; }
+    .sse-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .sse-box { background: #111; border: 1px solid #333; border-radius: 4px; padding: 12px; max-height: 300px; overflow-y: auto; font-size: 11px; }
+    .sse-box h3 { color: #ff44ff; font-size: 12px; margin-bottom: 8px; }
+    #sse-events { color: #ff44ff; }
+    #sse-state { color: #00ff88; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    hr { border: none; border-top: 1px solid #222; margin: 16px 0; }
+  </style>
+</head>
+<body>
+  <h1>Siege — Frontend Integration Test</h1>
+  <p class="subtitle">Exercises every API endpoint + SSE stream. Open console for raw JSON.</p>
+
+  <div class="grid-3">
+    <div class="field">
+      <label>Backend URL</label>
+      <input id="baseUrl" value="https://multiagenthealthtechbackend.onrender.com" size="50">
+    </div>
+    <div class="field">
+      <label>API Key (leave blank to register new)</label>
+      <input id="apiKeyInput" placeholder="hosp-..." size="40">
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <div class="controls" style="margin:0">
+        <button onclick="registerHospital()">Register</button>
+        <button onclick="loginHospital()">Login</button>
+        <button onclick="useExistingKey()">Use Key</button>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <h2>1. Auth &amp; Setup</h2>
+  <div class="controls">
+    <button onclick="testHealth()" id="btn-health">Health</button>
+    <button onclick="testResources()" id="btn-resources">List Resources</button>
+    <button onclick="testLLMKeys()" id="btn-llm">LLM Keys Status</button>
+    <button onclick="testAuditLog()" id="btn-audit">Audit Log</button>
+  </div>
+
+  <h2>2. Emergency Flow</h2>
+  <div class="grid-3">
+    <div class="field">
+      <label>Scope</label>
+      <select id="scope"><option value="individual">individual</option><option value="mass">mass</option></select>
+    </div>
+    <div class="field">
+      <label>Departments (comma-separated)</label>
+      <input id="departments" value="Emergency,ICU,Surgery">
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <button onclick="declareEmergency()" id="btn-emergency">Declare Emergency</button>
+    </div>
+  </div>
+
+  <h2>3. Add Cases (triggers negotiation)</h2>
+  <div class="grid-3">
+    <div class="field">
+      <label>Acuity Score (1-5)</label>
+      <input id="acuity" type="number" value="5" min="1" max="5">
+    </div>
+    <div class="field">
+      <label>Required Resources (comma-separated)</label>
+      <input id="requiredResources" value="icu_bed,staff">
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <button onclick="addCase()" id="btn-case">Add Case</button>
+    </div>
+  </div>
+  <div class="controls">
+    <button onclick="addCasePreset(5, ['icu_bed','staff'])">+ Critical (icu+staff)</button>
+    <button onclick="addCasePreset(4, ['or_slot','equipment'])">+ Serious (or+equip)</button>
+    <button onclick="addCasePreset(3, ['er_bay'])">+ Moderate (er_bay)</button>
+    <button onclick="addCasePreset(2, ['er_bay'])">+ Minor (er_bay)</button>
+    <button onclick="addCasePreset(1, ['equipment'])">+ Low (equipment)</button>
+  </div>
+
+  <h2>4. State &amp; Rounds</h2>
+  <div class="controls">
+    <button onclick="getEmergencyState()" id="btn-state">Get Emergency State</button>
+    <button onclick="resolveEmergency()" id="btn-resolve">Resolve Emergency</button>
+    <button onclick="testLLMKeysUpsert()" id="btn-llm-set">Set LLM Key</button>
+    <button onclick="testLLMKeysDelete()" id="btn-llm-del">Delete LLM Key</button>
+  </div>
+
+  <h2>5. Resource Override</h2>
+  <div class="grid-3">
+    <div class="field">
+      <label>Resource ID</label>
+      <input id="resId" placeholder="res-001">
+    </div>
+    <div class="field">
+      <label>New Status</label>
+      <select id="resStatus"><option>available</option><option>occupied</option><option>reserved</option><option>offline</option></select>
+    </div>
+    <div class="field">
+      <label>&nbsp;</label>
+      <button onclick="patchResource()" id="btn-res">Patch Resource</button>
+    </div>
+  </div>
+
+  <hr>
+  <h2>Server Log</h2>
+  <div id="log"></div>
+
+  <div class="sse-panel">
+    <div class="sse-box">
+      <h3>SSE Events (live)</h3>
+      <div id="sse-events"><em>Connect via "Declare Emergency" or "Add Case"</em></div>
+    </div>
+    <div class="sse-box">
+      <h3>Emergency State</h3>
+      <div id="sse-state"><em>Click "Get Emergency State"</em></div>
+    </div>
+  </div>
+
+  <script>
+    // ── State ────────────────────────────────────────────────
+    let BASE = '';
+    let API_KEY = '';
+    let HOSPITAL_ID = '';
+    let EMERGENCY_ID = '';
+    let SSE_SOURCE = null;
+    let ROUND_IDS = [];
+
+    const logEl = document.getElementById('log');
+    const sseEventsEl = document.getElementById('sse-events');
+    const sseStateEl = document.getElementById('sse-state');
+
+    function baseUrl() { return document.getElementById('baseUrl').value.replace(/\/+$/, ''); }
+
+    function log(msg, cls = 'log-info') {
+      const t = new Date().toLocaleTimeString();
+      const div = document.createElement('div');
+      div.className = `log-entry ${cls}`;
+      div.innerHTML = `<span class="log-time">[${t}]</span> ${msg}`;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function logJSON(label, data, cls = 'log-data') {
+      log(`${label}:`, cls);
+      const pre = document.createElement('div');
+      pre.className = 'log-entry log-data';
+      pre.style.paddingLeft = '16px';
+      pre.style.whiteSpace = 'pre-wrap';
+      pre.style.wordBreak = 'break-all';
+      pre.textContent = JSON.stringify(data, null, 2);
+      logEl.appendChild(pre);
+      logEl.scrollTop = logEl.scrollHeight;
+      console.log(label, data);
+    }
+
+    function headers() { return { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' }; }
+
+    async function api(method, path, body) {
+      const opts = { method, headers: headers() };
+      if (body) opts.body = JSON.stringify(body);
+      const url = `${baseUrl()}${path}`;
+      log(`→ ${method} ${path}`, 'log-info');
+      const res = await fetch(url, opts);
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = text; }
+      if (!res.ok) {
+        log(`← ${res.status} ${JSON.stringify(data)}`, 'log-err');
+        throw new Error(JSON.stringify(data));
+      }
+      log(`← ${res.status} OK`, 'log-ok');
+      return data;
+    }
+
+    // ── Auth ─────────────────────────────────────────────────
+    async function registerHospital() {
+      try {
+        const name = prompt('Hospital name:', 'Test Hospital');
+        if (!name) return;
+        const email = prompt('Email:', `${name.toLowerCase().replace(/\s/g, '-')}@test.com`);
+        const password = prompt('Password:', 'test123');
+        const data = await api('POST', '/hospitals/register', { name, email, password });
+        API_KEY = data.api_key;
+        HOSPITAL_ID = data.hospital_id;
+        document.getElementById('apiKeyInput').value = API_KEY;
+        logJSON('Registered', data);
+      } catch (e) { log(`Register failed: ${e.message}`, 'log-err'); }
+    }
+
+    async function loginHospital() {
+      try {
+        const email = prompt('Email:');
+        const password = prompt('Password:');
+        const data = await api('POST', '/auth/login', { email, password });
+        API_KEY = data.token;
+        HOSPITAL_ID = data.hospital_id;
+        document.getElementById('apiKeyInput').value = API_KEY;
+        logJSON('Logged in', data);
+      } catch (e) { log(`Login failed: ${e.message}`, 'log-err'); }
+    }
+
+    function useExistingKey() {
+      API_KEY = document.getElementById('apiKeyInput').value.trim();
+      if (!API_KEY) { log('Enter an API key first', 'log-err'); return; }
+      log(`Using API key: ${API_KEY.slice(0, 20)}...`, 'log-ok');
+    }
+
+    // ── Health ───────────────────────────────────────────────
+    async function testHealth() {
+      try {
+        const data = await api('GET', '/health');
+        logJSON('Health', data);
+      } catch (e) { log(`Health failed: ${e.message}`, 'log-err'); }
+    }
+
+    // ── Resources ────────────────────────────────────────────
+    async function testResources() {
+      try {
+        const data = await api('GET', '/resources');
+        logJSON(`Resources (${data.length} total)`, data);
+        // Show in SSE state panel
+        sseStateEl.innerHTML = data.map(r =>
+          `<div style="margin:4px 0;color:${r.status==='available'?'#00ff88':'#ff4444'}">` +
+          `<b>${r.label}</b> (${r.type}) — ${r.status} — ${r.department}</div>`
+        ).join('');
+      } catch (e) { log(`Resources failed: ${e.message}`, 'log-err'); }
+    }
+
+    // ── LLM Keys ─────────────────────────────────────────────
+    async function testLLMKeys() {
+      try {
+        const data = await api('GET', '/settings/llm-keys');
+        logJSON('LLM Key Status', data);
+      } catch (e) { log(`LLM keys failed: ${e.message}`, 'log-err'); }
+    }
+
+    async function testLLMKeysUpsert() {
+      try {
+        const provider = prompt('Provider (groq or mistral):', 'groq');
+        if (!provider) return;
+        const api_key = prompt(`Enter ${provider} API key:`);
+        if (!api_key) return;
+        const data = await api('PUT', `/settings/llm-keys/${provider}`, { api_key });
+        logJSON('LLM Key Set', data);
+      } catch (e) { log(`LLM key set failed: ${e.message}`, 'log-err'); }
+    }
+
+    async function testLLMKeysDelete() {
+      try {
+        const provider = prompt('Provider to delete (groq or mistral):', 'mistral');
+        if (!provider) return;
+        const data = await api('DELETE', `/settings/llm-keys/${provider}`);
+        logJSON('LLM Key Deleted', data);
+      } catch (e) { log(`LLM key delete failed: ${e.message}`, 'log-err'); }
+    }
+
+    // ── Emergency ────────────────────────────────────────────
+    async function declareEmergency() {
+      try {
+        const scope = document.getElementById('scope').value;
+        const department_reach = document.getElementById('departments').value.split(',').map(s => s.trim()).filter(Boolean);
+        const data = await api('POST', '/emergencies', { scope, department_reach });
+        EMERGENCY_ID = data.id;
+        logJSON('Emergency declared', data);
+
+        // Connect SSE
+        connectSSE(EMERGENCY_ID);
+      } catch (e) { log(`Emergency failed: ${e.message}`, 'log-err'); }
+    }
+
+    // ── Cases ────────────────────────────────────────────────
+    async function addCase() {
+      if (!EMERGENCY_ID) { log('Declare an emergency first', 'log-err'); return; }
+      try {
+        const acuity_score = parseInt(document.getElementById('acuity').value);
+        const required_resource_types = document.getElementById('requiredResources').value.split(',').map(s => s.trim()).filter(Boolean);
+        const data = await api('POST', `/emergencies/${EMERGENCY_ID}/cases`, { acuity_score, required_resource_types });
+        logJSON('Case added', data);
+        // Wait 12s then auto-refresh state
+        setTimeout(() => getEmergencyState(), 12000);
+      } catch (e) { log(`Add case failed: ${e.message}`, 'log-err'); }
+    }
+
+    async function addCasePreset(acuity, resources) {
+      if (!EMERGENCY_ID) { log('Declare an emergency first', 'log-err'); return; }
+      try {
+        const data = await api('POST', `/emergencies/${EMERGENCY_ID}/cases`, { acuity_score: acuity, required_resource_types: resources });
+        logJSON(`Case added (acuity=${acuity})`, data);
+        setTimeout(() => getEmergencyState(), 12000);
+      } catch (e) { log(`Add case failed: ${e.message}`, 'log-err'); }
+    }
+
+    // ── State ────────────────────────────────────────────────
+    async function getEmergencyState() {
+      if (!EMERGENCY_ID) { log('No emergency ID', 'log-err'); return; }
+      try {
+        const data = await api('GET', `/emergencies/${EMERGENCY_ID}`);
+        logJSON('Emergency State', data);
+
+        // Pretty display
+        sseStateEl.innerHTML = '<b>Cases:</b>' + data.cases.map(c =>
+          `<div style="color:${c.status==='allocated'?'#00ff88':'#ffaa00'}">` +
+          `  ${c.id.slice(0,8)}... | acuity=${c.acuity_score} | <b>${c.status}</b> | needs=[${c.required_resource_types.join(', ')}]</div>`
+        ).join('') + '<br><b>Resources:</b>' + data.resources.map(r =>
+          `<div style="color:${r.status==='available'?'#00ff88':'#ff4444'}">` +
+          `  ${r.label} (${r.type}) | ${r.status} | ${r.department}</div>`
+        ).join('') + '<br><b>Dependencies:</b>' + data.dependencies.map(d =>
+          `<div>  ${d.resource_id.slice(0,8)}... requires ${d.depends_on_resource_id.slice(0,8)}... (${d.relation})</div>`
+        ).join('');
+
+        // Auto-fetch round details for allocated cases
+        for (const c of data.cases) {
+          if (c.status === 'allocated') await getRoundForCase(c);
+        }
+      } catch (e) { log(`State failed: ${e.message}`, 'log-err'); }
+    }
+
+    async function getRoundForCase(caseObj) {
+      // Find round_id from audit log or bids — we'll try recent rounds
+      if (ROUND_IDS.length === 0) {
+        try {
+          const audit = await api('GET', '/audit-log?limit=5');
+          for (const entry of audit.entries) {
+            if (entry.payload?.roundId && !ROUND_IDS.includes(entry.payload.roundId)) {
+              ROUND_IDS.push(entry.payload.roundId);
+            }
+          }
+        } catch {}
+      }
+      for (const rid of ROUND_IDS) {
+        try {
+          const details = await api('GET', `/emergencies/${EMERGENCY_ID}/rounds/${rid}`);
+          if (details.bids.length > 0 || details.allocations.length > 0) {
+            logJSON(`Round ${rid.slice(0,8)}...`, details);
+          }
+        } catch {}
+      }
+    }
+
+    // ── Resolve ──────────────────────────────────────────────
+    async function resolveEmergency() {
+      if (!EMERGENCY_ID) { log('No emergency ID', 'log-err'); return; }
+      try {
+        const data = await api('PATCH', `/emergencies/${EMERGENCY_ID}/resolve`);
+        logJSON('Emergency resolved', data);
+        if (SSE_SOURCE) { SSE_SOURCE.close(); SSE_SOURCE = null; log('SSE closed', 'log-info'); }
+      } catch (e) { log(`Resolve failed: ${e.message}`, 'log-err'); }
+    }
+
+    // ── Resource Override ────────────────────────────────────
+    async function patchResource() {
+      const id = document.getElementById('resId').value.trim();
+      const status = document.getElementById('resStatus').value;
+      if (!id) { log('Enter a resource ID', 'log-err'); return; }
+      try {
+        const data = await api('PATCH', `/resources/${id}`, { status });
+        logJSON('Resource updated', data);
+      } catch (e) { log(`Resource patch failed: ${e.message}`, 'log-err'); }
+    }
+
+    // ── SSE ──────────────────────────────────────────────────
+    function connectSSE(emergencyId) {
+      if (SSE_SOURCE) { SSE_SOURCE.close(); }
+      const url = `${baseUrl()}/emergencies/${emergencyId}/stream`;
+      log(`Connecting SSE to ${url}...`, 'log-info');
+
+      sseEventsEl.innerHTML = '';
+
+      // Use fetch-based SSE (supports auth headers)
+      const controller = new AbortController();
+      fetch(url, { headers: { Authorization: `Bearer ${API_KEY}` }, signal: controller.signal })
+        .then(res => {
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+
+          function read() {
+            reader.read().then(({ done, value }) => {
+              if (done) { log('SSE stream ended', 'log-info'); return; }
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+              buffer = lines.pop();
+              let eventType = '';
+              let eventData = '';
+              for (const line of lines) {
+                if (line.startsWith('event: ')) {
+                  eventType = line.slice(7);
+                } else if (line.startsWith('data: ')) {
+                  eventData = line.slice(6);
+                } else if (line.trim() === '' && eventType && eventData) {
+                  handleSSEEvent(eventType, eventData);
+                  eventType = '';
+                  eventData = '';
+                }
+              }
+              read();
+            }).catch(err => {
+              if (err.name !== 'AbortError') log(`SSE error: ${err.message}`, 'log-err');
+            });
+          }
+          read();
+        })
+        .catch(err => log(`SSE connect failed: ${err.message}`, 'log-err'));
+
+      SSE_SOURCE = { close: () => controller.abort() };
+    }
+
+    function handleSSEEvent(type, dataStr) {
+      let data;
+      try { data = JSON.parse(dataStr); } catch { data = dataStr; }
+
+      const div = document.createElement('div');
+      div.style.margin = '4px 0';
+
+      const colors = {
+        connected: '#00aaff',
+        emergency_declared: '#ffaa00',
+        case_added: '#ffaa00',
+        bid_submitted: '#ff44ff',
+        'round:completed': '#00ff88',
+        emergency_resolved: '#ff4444',
+        resource_status_changed: '#00aaff',
+      };
+
+      div.style.color = colors[type] || '#e0e0e0';
+
+      if (type === 'connected') {
+        div.innerHTML = `<b>CONNECTED</b> to emergency ${data.emergencyId}`;
+      } else if (type === 'bid_submitted') {
+        div.innerHTML = `<b>BID</b> resource=${data.resource_id?.slice(0,8)}... score=${data.bid_score} for case=${data.case_id?.slice(0,8)}...`;
+      } else if (type === 'round:completed') {
+        div.innerHTML = `<b>ROUND COMPLETE</b> ${data.allocations?.length || 0} allocation(s)<br>` +
+          `<span style="color:#888">${data.explanation || ''}</span>`;
+        ROUND_IDS.push(data.roundId);
+      } else if (type === 'case_added') {
+        div.innerHTML = `<b>CASE ADDED</b> acuity=${data.acuity_score} status=${data.status}`;
+      } else if (type === 'emergency_declared') {
+        div.innerHTML = `<b>EMERGENCY DECLARED</b> scope=${data.scope}`;
+      } else if (type === 'emergency_resolved') {
+        div.innerHTML = `<b>EMERGENCY RESOLVED</b>`;
+      } else {
+        div.innerHTML = `<b>${type}</b>: ${JSON.stringify(data).slice(0, 200)}`;
+      }
+
+      sseEventsEl.appendChild(div);
+      sseEventsEl.scrollTop = sseEventsEl.scrollHeight;
+      console.log(`[SSE] ${type}`, data);
+    }
+
+    log('Ready. Register/login or enter an API key to begin.', 'log-ok');
+  </script>
+</body>
+</html>

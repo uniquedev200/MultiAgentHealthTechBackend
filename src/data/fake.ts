@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
-import type { Case, Resource, ResourceDependency, Allocation, Bid, AuditLogEntry, Emergency } from "./types";
+import { createHash } from "crypto";
+import type { Case, Resource, ResourceDependency, Allocation, Bid, AuditLogEntry, Emergency, AllocationApprovalStatus } from "./types";
 
 const HOSP_A = "11111111-1111-1111-1111-111111111111";
 const HOSP_B = "22222222-2222-2222-2222-222222222222";
@@ -109,13 +110,19 @@ export const sseClients = new Map<string, SSEClient[]>();
 export async function loadState(
   emergencyId: string,
   hospitalId: string
-): Promise<{ cases: Case[]; resources: Resource[]; dependencies: ResourceDependency[] }> {
+): Promise<{ cases: Case[]; resources: Resource[]; dependencies: ResourceDependency[]; allocations: Allocation[] }> {
+  const caseIds = fakeCases
+    .filter((c) => c.emergency_id === emergencyId && c.hospital_id === hospitalId)
+    .map((c) => c.id);
   return {
     cases: fakeCases.filter(
       (c) => c.emergency_id === emergencyId && c.hospital_id === hospitalId
     ),
     resources: fakeResources.filter((r) => r.hospital_id === hospitalId),
     dependencies: fakeDependencies,
+    allocations: fakeAllocations.filter(
+      (a) => caseIds.includes(a.case_id) && a.hospital_id === hospitalId
+    ),
   };
 }
 
@@ -145,20 +152,48 @@ export async function saveResult(
   allocations: Allocation[],
   explanation: string,
   hospitalId: string
-): Promise<void> {
+): Promise<Allocation[]> {
+  const saved: Allocation[] = [];
   for (const alloc of allocations) {
-    fakeAllocations.push({
+    const id = alloc.id || uuidv4();
+    alloc.id = id;
+    const entry: Allocation = {
       ...alloc,
-      id: alloc.id || uuidv4(),
       hospital_id: hospitalId,
       round_id: roundId,
       explanation,
+      approval_status: "pending",
       created_at: alloc.created_at || new Date().toISOString(),
-    });
+    };
+    fakeAllocations.push(entry);
+    saved.push(entry);
   }
   console.log(
     `[saveResult] Round ${roundId}: saved ${allocations.length} allocation(s) for hospital ${hospitalId}`
   );
+
+  // Write audit log entry
+  const auditPayload = {
+    roundId,
+    allocations: allocations.map((a) => ({
+      caseId: a.case_id,
+      resourceId: a.resource_id,
+    })),
+    explanation,
+  };
+  const prevHash = fakeAuditLog.length > 0 ? fakeAuditLog[fakeAuditLog.length - 1].hash : null;
+  const hash = createHash("sha256")
+    .update(JSON.stringify(auditPayload) + (prevHash || ""))
+    .digest("hex");
+  fakeAuditLog.push({
+    id: `audit-${Date.now()}`,
+    hospital_id: hospitalId,
+    event_type: "round_saved",
+    payload: auditPayload,
+    prev_hash: prevHash,
+    hash,
+    created_at: new Date().toISOString(),
+  });
 
   // Mark allocated cases
   const allocatedCaseIds = new Set(allocations.map((a) => a.case_id));
@@ -205,6 +240,8 @@ export async function saveResult(
       }
     }
   }
+
+  return saved;
 }
 
 // ── Core function 3: broadcast ────────────────────────────────
@@ -241,6 +278,14 @@ export async function getEmergency(
   );
 }
 
+export async function getEmergencies(
+  hospitalId: string
+): Promise<Emergency[]> {
+  return fakeEmergencies
+    .filter((e) => e.hospital_id === hospitalId)
+    .sort((a, b) => new Date(b.declared_at).getTime() - new Date(a.declared_at).getTime());
+}
+
 // ── resolveEmergency ──────────────────────────────────────────
 export async function resolveEmergency(
   emergencyId: string,
@@ -255,6 +300,21 @@ export async function resolveEmergency(
     );
   emergency.status = "resolved";
   emergency.resolved_at = new Date().toISOString();
+}
+
+// ── updateEmergencyStatus ─────────────────────────────────────
+export async function updateEmergencyStatus(
+  emergencyId: string,
+  status: string,
+  hospitalId: string
+): Promise<void> {
+  const emergency = fakeEmergencies.find(
+    (e) => e.id === emergencyId && e.hospital_id === hospitalId
+  );
+  if (!emergency) return;
+  emergency.status = status as Emergency["status"];
+  if (status === "active") emergency.resolved_at = null;
+  else emergency.resolved_at = new Date().toISOString();
 }
 
 // ── createEmergency ───────────────────────────────────────────
@@ -347,6 +407,44 @@ export async function getAuditLog(
 }
 
 type ResourceStatus = "available" | "occupied" | "reserved" | "offline";
+
+// ── HITL: Allocation approval ─────────────────────────────────
+export async function updateAllocationApproval(
+  allocationId: string,
+  approvalStatus: AllocationApprovalStatus,
+  hospitalId: string
+): Promise<Allocation | null> {
+  const alloc = fakeAllocations.find(
+    (a) => a.id === allocationId && a.hospital_id === hospitalId
+  );
+  if (!alloc) return null;
+  alloc.approval_status = approvalStatus;
+
+  if (approvalStatus === "rejected") {
+    const resource = fakeResources.find(
+      (r) => r.id === alloc.resource_id && r.hospital_id === hospitalId
+    );
+    if (resource) resource.status = "available";
+
+    const c = fakeCases.find(
+      (ca) => ca.id === alloc.case_id && ca.hospital_id === hospitalId
+    );
+    if (c) c.status = "pending";
+
+    // Reactivate emergency if it was auto-resolved
+    if (c) {
+      const emergency = fakeEmergencies.find(
+        (e) => e.id === c.emergency_id && e.hospital_id === hospitalId
+      );
+      if (emergency && emergency.status === "resolved") {
+        emergency.status = "active";
+        emergency.resolved_at = null;
+      }
+    }
+  }
+
+  return alloc;
+}
 
 // ── LLM credential management (in-memory) ────────────────────
 import { encryptCredential, decryptCredential } from "../credentials";

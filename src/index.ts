@@ -18,10 +18,13 @@ import {
   getRoundDetails,
   getAuditLog,
   getEmergency,
+  getEmergencies,
   resolveEmergency,
+  updateEmergencyStatus,
   getLLMKeyStatus,
   upsertLLMKey,
   deleteLLMKey,
+  updateAllocationApproval,
   type SSEClient,
 } from "./data";
 import { scheduleEmergency, cancelSchedule } from "./scheduler";
@@ -29,6 +32,21 @@ import { scheduleEmergency, cancelSchedule } from "./scheduler";
 dotenv.config();
 
 const app = express();
+
+// ── CORS — allow Vercel frontend + localhost dev ───────────────
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
+app.use((req, res, next) => {
+  const origin = req.headers.origin || "";
+  if (ALLOWED_ORIGINS.length === 0 || ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin || "*");
+  }
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
+  if (req.method === "OPTIONS") return res.sendStatus(204);
+  next();
+});
+
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
@@ -229,10 +247,28 @@ app.post("/emergencies/:id/cases", async (req, res) => {
     );
     broadcast(emergencyId, "case_added", newCase);
 
+    // Reactivate emergency if it was auto-resolved
+    if (emergency.status === "resolved") {
+      await updateEmergencyStatus(emergencyId, "active", req.hospitalId);
+      const refreshed = await getEmergency(emergencyId, req.hospitalId);
+      if (refreshed) broadcast(emergencyId, "emergency_reactivated", refreshed);
+    }
+
     // Trigger negotiation scheduler (debounced — rapid case additions batch together)
     scheduleEmergency(emergencyId, req.hospitalId);
 
     res.status(201).json(newCase);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── GET /emergencies — list all emergencies for this hospital ─
+app.get("/emergencies", async (req, res) => {
+  try {
+    const emergencies = await getEmergencies(req.hospitalId);
+    res.json(emergencies);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -422,6 +458,29 @@ app.delete("/settings/llm-keys/:provider", async (req, res) => {
   }
 });
 
+// ── HITL: Approve/Reject allocations ──────────────────────────
+app.patch("/allocations/:id/approve", async (req, res) => {
+  try {
+    const updated = await updateAllocationApproval(req.params.id, "approved", req.hospitalId);
+    if (!updated) return res.status(404).json({ error: "Allocation not found" });
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.patch("/allocations/:id/reject", async (req, res) => {
+  try {
+    const updated = await updateAllocationApproval(req.params.id, "rejected", req.hospitalId);
+    if (!updated) return res.status(404).json({ error: "Allocation not found" });
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── 404 catch-all ─────────────────────────────────────────────
 app.use((_req, res) => {
   res.status(404).json({ error: "Not found" });
@@ -469,5 +528,7 @@ app.listen(PORT, () => {
   console.log(`   GET    /audit-log`);
   console.log(`   GET    /settings/llm-keys`);
   console.log(`   PUT    /settings/llm-keys/:provider`);
-  console.log(`   DELETE /settings/llm-keys/:provider\n`);
+  console.log(`   DELETE /settings/llm-keys/:provider`);
+  console.log(`   PATCH  /allocations/:id/approve  (HITL)`);
+  console.log(`   PATCH  /allocations/:id/reject   (HITL)\n`);
 });

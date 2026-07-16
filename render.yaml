@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: siege-negotiation
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_LAYER
+        value: live
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: GROQ_API_KEY
+        sync: false
+      - key: MISTRAL_API_KEY
+        sync: false
+      - key: CREDENTIAL_ENCRYPTION_KEY
+        generateValue: true
+      - key: DEBOUNCE_MS
+        value: "3000"
+      - key: ROUND_COOLDOWN_MS
+        value: "5000"
+      - key: MAX_RETRIES
+        value: "3"

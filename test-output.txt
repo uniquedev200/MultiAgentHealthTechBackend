@@ -1,0 +1,580 @@
+
+Target: https://multiagenthealthtechbackend.onrender.com
+Starting API test run...
+
+
+============================================================
+  1. GET /health (no auth)
+============================================================
+
+[✓] Health check — HTTP 200
+{
+  "status": "ok"
+}
+
+============================================================
+  2. POST /hospitals/register (no auth)
+============================================================
+
+[✓] Register hospital — HTTP 201
+{
+  "hospital_id": "40dc4aa1-8b8b-4fda-a802-ff96a033a28e",
+  "name": "API Test Hospital",
+  "api_key": "hosp-0651d90a-e2d8-484d-8465-a732c35aa2ff"
+}
+
+  → Using new API key: hosp-0651d90a-e2d8-484d-8465-a732c35aa2ff
+  → Hospital ID: 40dc4aa1-8b8b-4fda-a802-ff96a033a28e
+
+============================================================
+  3. POST /auth/login (no auth)
+============================================================
+
+[✓] Login — HTTP 200
+{
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJob3NwaXRhbF9pZCI6IjExMTExMTExLTExMTEtMTExMS0xMTExLTExMTExMTExMTExMSIsImlhdCI6MTc4NDE5MzI4MSwiZXhwIjoxNzg0Mjc5NjgxfQ.w7-FC_3B8_nvxpsFnL9lzLLXteQmRi8nj99CKWNMzPg",
+  "hospital_id": "11111111-1111-1111-1111-111111111111",
+  "name": "General Hospital"
+}
+
+  → Switched back to demo key: gh-live-key-001
+
+============================================================
+  4. GET /resources
+============================================================
+
+[✓] List resources — HTTP 200
+[
+  {
+    "id": "d3706e6f-2bd9-420a-969f-6ff5c7e50acc",
+    "type": "equipment",
+    "label": "Ventilator A",
+    "status": "available",
+    "department": "ICU",
+    "metadata": {
+      "model": "VitaMax-3000"
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "486c256b-cda6-4c52-a9e1-d8d660e7a4df",
+    "type": "equipment",
+    "label": "Portable X-Ray",
+    "status": "available",
+    "department": "Radiology",
+    "metadata": {
+      "model": "ImagingPro"
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "ae724a5d-8874-41d3-bdbc-52139036b368",
+    "type": "er_bay",
+    "label": "ER Bay 3",
+    "status": "available",
+    "department": "Emergency",
+    "metadata": {
+      "beds": 1
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "03774891-d55c-430c-97b6-6fd04712f328",
+    "type": "er_bay",
+    "label": "ER Bay 1",
+    "status": "available",
+    "department": "Emergency",
+    "metadata": {
+      "beds": 2
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "d19f6777-23e3-4c0f-bb64-7bc9280e3303",
+    "type": "er_bay",
+    "label": "ER Bay 2",
+    "status": "available",
+    "department": "Emergency",
+    "metadata": {
+      "beds": 3
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "9c4d4182-5334-4ec0-9735-8f45f64f3490",
+    "type": "icu_bed",
+    "label": "ICU Bed 3",
+    "status": "available",
+    "department": "ICU",
+    "metadata": {
+      "ventilator": false
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "c91437e7-655e-4dae-b50a-0f579e430b02",
+    "type": "icu_bed",
+    "label": "ICU Bed 4",
+    "status": "available",
+    "department": "ICU",
+    "metadata": {
+      "ventilator": true
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "767b4119-d7d2-4d03-b57a-6c1e458da205",
+    "type": "icu_bed",
+    "label": "ICU Bed 2",
+    "status": "occupied",
+    "department": "ICU",
+    "metadata": {
+      "ventilator": true
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "343433ba-9935-49da-9420-3214caed4e3e",
+    "type": "icu_bed",
+    "label": "ICU Bed 1",
+    "status": "available",
+    "department": "ICU",
+    "metadata": {
+      "ventilator": true
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "48500da2-820a-4c07-be8d-dd2d2b76335f",
+    "type": "or_slot",
+    "label": "OR Suite 1",
+    "status": "available",
+    "department": "Surgery",
+    "metadata": {
+      "capacity": 1,
+      "specialty": "general"
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "af542c1a-e2cf-4c01-9af1-6e303d993f82",
+    "type": "or_slot",
+    "label": "OR Suite 4",
+    "status": "available",
+    "department": "Surgery",
+    "metadata": {
+      "capacity": 1,
+      "specialty": "trauma"
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "87284df8-a2a9-423a-b1d1-90df6f1cb322",
+    "type": "or_slot",
+    "label": "OR Suite 2",
+    "status": "available",
+    "department": "Surgery",
+    "metadata": {
+      "capacity": 1,
+      "specialty": "cardiac"
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "1514b982-2d63-48ea-b8dc-ea1c62b7afea",
+    "type": "or_slot",
+    "label": "OR Suite 3",
+    "status": "available",
+    "department": "Surgery",
+    "metadata": {
+      "capacity": 1,
+      "specialty": "neuro"
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "459f296c-41d7-4e05-9352-2f48b8e7e1aa",
+    "type": "staff",
+    "label": "Dr. Patel",
+    "status": "occupied",
+    "department": "Surgery",
+    "metadata": {
+      "role": "anesthesiologist",
+      "specialty": "cardiac"
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "6dec0732-dc8e-4926-9af3-6f0ce74de434",
+    "type": "staff",
+    "label": "Dr. Nguyen",
+    "status": "available",
+    "department": "Surgery",
+    "metadata": {
+      "role": "surgeon",
+      "specialty": "trauma"
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  },
+  {
+    "id": "37fcb4e2-4b36-4a81-99b4-39c18bfc8e4b",
+    "type": "staff",
+    "label": "Dr. Kim",
+    "status": "available",
+    "department": "Surgery",
+    "metadata": {
+      "role": "surgeon",
+      "specialty": "neuro"
+    },
+    "hospital_id": "11111111-1111-1111-1111-111111111111"
+  }
+]
+
+============================================================
+  5. GET /settings/llm-keys
+============================================================
+
+[✓] LLM key status — HTTP 200
+{
+  "groq": {
+    "configured": false
+  },
+  "mistral": {
+    "configured": false
+  }
+}
+
+============================================================
+  6. GET /audit-log
+============================================================
+
+[✓] Audit log — HTTP 200
+{
+  "entries": [
+    {
+      "id": "b079fe41-d7de-4af8-a72f-e926b5a9a4f2",
+      "event_type": "round_saved",
+      "payload": {
+        "roundId": "60897cb0-f399-42c3-bde5-1e666c7c1fae",
+        "allocations": [
+          {
+            "caseId": "e4d1d43b-538c-4926-a601-bc293e0c6bfe",
+            "resourceId": "459f296c-41d7-4e05-9352-2f48b8e7e1aa"
+          }
+        ],
+        "explanation": "This case requires both an ICU bed and surgical staff, with the highest-scoring bid (8) matching a surgeon who is available. While multiple ICU beds are available, the current allocation prioritizes the surgeon, ensuring the case proceeds efficiently with the most critical resource secured."
+      },
+      "prev_hash": "dd2a3d3355b295d7ac64758a0f8e90a6be6a190e215407296a448d322ad07f4d",
+      "hash": "5447acd395bdb744465fbc3388f282fcff967a627f5c5a8f4c629d25502cd7dc",
+      "created_at": "2026-07-16T09:03:58.894Z",
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "4383d69f-927f-463c-b144-1b9539f93d99",
+      "event_type": "round_saved",
+      "payload": {
+        "roundId": "a7e79137-cdea-484c-bd0b-7c0b8bca1e2f",
+        "allocations": [
+          {
+            "caseId": "317eded4-9b27-4202-b45f-f50ae711c5bf",
+            "resourceId": "767b4119-d7d2-4d03-b57a-6c1e458da205"
+          }
+        ],
+        "explanation": "This case requires an ICU bed and staff, with four ICU beds and three surgery staff members available as strong matches. The current allocation optimally assigns the highest-scoring ICU bed, ensuring efficient resource use while meeting critical patient needs."
+      },
+      "prev_hash": null,
+      "hash": "dd2a3d3355b295d7ac64758a0f8e90a6be6a190e215407296a448d322ad07f4d",
+      "created_at": "2026-07-16T09:01:56.031Z",
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    }
+  ],
+  "page": 1,
+  "limit": 3,
+  "total": 2
+}
+
+============================================================
+  7. POST /emergencies
+============================================================
+
+[✓] Declare emergency — HTTP 201
+{
+  "id": "c77bf08e-b45a-4860-b79c-80a110b8a0db",
+  "scope": "individual",
+  "status": "active",
+  "department_reach": [
+    "Emergency",
+    "ICU",
+    "Surgery"
+  ],
+  "declared_at": "2026-07-16T09:14:43.013Z",
+  "resolved_at": null,
+  "hospital_id": "11111111-1111-1111-1111-111111111111"
+}
+
+  → Emergency ID: c77bf08e-b45a-4860-b79c-80a110b8a0db
+
+============================================================
+  8. GET /emergencies/:id
+============================================================
+
+[✓] Emergency state — HTTP 200
+{
+  "cases": [],
+  "resources": [
+    {
+      "id": "d3706e6f-2bd9-420a-969f-6ff5c7e50acc",
+      "type": "equipment",
+      "label": "Ventilator A",
+      "status": "available",
+      "department": "ICU",
+      "metadata": {
+        "model": "VitaMax-3000"
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "486c256b-cda6-4c52-a9e1-d8d660e7a4df",
+      "type": "equipment",
+      "label": "Portable X-Ray",
+      "status": "available",
+      "department": "Radiology",
+      "metadata": {
+        "model": "ImagingPro"
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "ae724a5d-8874-41d3-bdbc-52139036b368",
+      "type": "er_bay",
+      "label": "ER Bay 3",
+      "status": "available",
+      "department": "Emergency",
+      "metadata": {
+        "beds": 1
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "03774891-d55c-430c-97b6-6fd04712f328",
+      "type": "er_bay",
+      "label": "ER Bay 1",
+      "status": "available",
+      "department": "Emergency",
+      "metadata": {
+        "beds": 2
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "d19f6777-23e3-4c0f-bb64-7bc9280e3303",
+      "type": "er_bay",
+      "label": "ER Bay 2",
+      "status": "available",
+      "department": "Emergency",
+      "metadata": {
+        "beds": 3
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "9c4d4182-5334-4ec0-9735-8f45f64f3490",
+      "type": "icu_bed",
+      "label": "ICU Bed 3",
+      "status": "available",
+      "department": "ICU",
+      "metadata": {
+        "ventilator": false
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "c91437e7-655e-4dae-b50a-0f579e430b02",
+      "type": "icu_bed",
+      "label": "ICU Bed 4",
+      "status": "available",
+      "department": "ICU",
+      "metadata": {
+        "ventilator": true
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "767b4119-d7d2-4d03-b57a-6c1e458da205",
+      "type": "icu_bed",
+      "label": "ICU Bed 2",
+      "status": "occupied",
+      "department": "ICU",
+      "metadata": {
+        "ventilator": true
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "343433ba-9935-49da-9420-3214caed4e3e",
+      "type": "icu_bed",
+      "label": "ICU Bed 1",
+      "status": "available",
+      "department": "ICU",
+      "metadata": {
+        "ventilator": true
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "48500da2-820a-4c07-be8d-dd2d2b76335f",
+      "type": "or_slot",
+      "label": "OR Suite 1",
+      "status": "available",
+      "department": "Surgery",
+      "metadata": {
+        "capacity": 1,
+        "specialty": "general"
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "af542c1a-e2cf-4c01-9af1-6e303d993f82",
+      "type": "or_slot",
+      "label": "OR Suite 4",
+      "status": "available",
+      "department": "Surgery",
+      "metadata": {
+        "capacity": 1,
+        "specialty": "trauma"
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "87284df8-a2a9-423a-b1d1-90df6f1cb322",
+      "type": "or_slot",
+      "label": "OR Suite 2",
+      "status": "available",
+      "department": "Surgery",
+      "metadata": {
+        "capacity": 1,
+        "specialty": "cardiac"
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "1514b982-2d63-48ea-b8dc-ea1c62b7afea",
+      "type": "or_slot",
+      "label": "OR Suite 3",
+      "status": "available",
+      "department": "Surgery",
+      "metadata": {
+        "capacity": 1,
+        "specialty": "neuro"
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "459f296c-41d7-4e05-9352-2f48b8e7e1aa",
+      "type": "staff",
+      "label": "Dr. Patel",
+      "status": "occupied",
+      "department": "Surgery",
+      "metadata": {
+        "role": "anesthesiologist",
+        "specialty": "cardiac"
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "6dec0732-dc8e-4926-9af3-6f0ce74de434",
+      "type": "staff",
+      "label": "Dr. Nguyen",
+      "status": "available",
+      "department": "Surgery",
+      "metadata": {
+        "role": "surgeon",
+        "specialty": "trauma"
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    },
+    {
+      "id": "37fcb4e2-4b36-4a81-99b4-39c18bfc8e4b",
+      "type": "staff",
+      "label": "Dr. Kim",
+      "status": "available",
+      "department": "Surgery",
+      "metadata": {
+        "role": "surgeon",
+        "specialty": "neuro"
+      },
+      "hospital_id": "11111111-1111-1111-1111-111111111111"
+    }
+  ],
+  "dependencies": [
+    {
+      "id": "7fcbf082-2c41-4cd5-8fae-1f986bd331b6",
+      "resource_id": "48500da2-820a-4c07-be8d-dd2d2b76335f",
+      "depends_on_resource_id": "459f296c-41d7-4e05-9352-2f48b8e7e1aa",
+      "relation": "requires"
+    },
+    {
+      "id": "1c86d384-77d2-4193-b957-18a32f87ebf7",
+      "resource_id": "343433ba-9935-49da-9420-3214caed4e3e",
+      "depends_on_resource_id": "d3706e6f-2bd9-420a-969f-6ff5c7e50acc",
+      "relation": "requires"
+    },
+    {
+      "id": "0f6feadf-e904-4ff1-aa71-b88df1a302bb",
+      "resource_id": "87284df8-a2a9-423a-b1d1-90df6f1cb322",
+      "depends_on_resource_id": "6dec0732-dc8e-4926-9af3-6f0ce74de434",
+      "relation": "requires"
+    }
+  ]
+}
+
+============================================================
+  9. POST /emergencies/:id/cases (3 cases, triggers negotiation)
+============================================================
+
+[✓] Case (acuity=5) — HTTP 201
+{
+  "id": "3fac350e-d358-4764-b4ef-ee501326d4a0",
+  "emergency_id": "c77bf08e-b45a-4860-b79c-80a110b8a0db",
+  "acuity_score": 5,
+  "status": "pending",
+  "required_resource_types": [
+    "icu_bed",
+    "staff"
+  ],
+  "created_at": "2026-07-16T09:14:43.806Z",
+  "hospital_id": "11111111-1111-1111-1111-111111111111"
+}
+
+[✓] Case (acuity=3) — HTTP 201
+{
+  "id": "c4fe21b3-3a22-4b89-b16b-34f8302ce17c",
+  "emergency_id": "c77bf08e-b45a-4860-b79c-80a110b8a0db",
+  "acuity_score": 3,
+  "status": "pending",
+  "required_resource_types": [
+    "er_bay"
+  ],
+  "created_at": "2026-07-16T09:14:44.700Z",
+  "hospital_id": "11111111-1111-1111-1111-111111111111"
+}
+
+FATAL: [TypeError: fetch failed] {
+  [cause]: SocketError: other side closed
+      at TLSSocket.onHttpSocketEnd (node:internal/deps/undici/undici:7718:26)
+      at TLSSocket.emit (node:events:521:24)
+      at endReadableNT (node:internal/streams/readable:1735:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21) {
+    code: 'UND_ERR_SOCKET',
+    socket: {
+      localAddress: '10.136.225.35',
+      localPort: 64994,
+      remoteAddress: '216.24.57.9',
+      remotePort: 443,
+      remoteFamily: 'IPv4',
+      timeout: undefined,
+      bytesWritten: 3829,
+      bytesRead: 7751
+    }
+  }
+}

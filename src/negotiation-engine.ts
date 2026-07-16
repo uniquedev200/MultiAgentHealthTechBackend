@@ -25,32 +25,57 @@ function getFallbackData(
   resources: Resource[],
   roundId?: string
 ): { bids: Bid[]; allocations: Allocation[]; explanation: string } {
-  const safeCase = cases.length > 0 ? cases[0].id : 'demo_case';
-  const safeRes = resources.length > 0 ? resources[0].id : 'demo_res';
+  const availableResources = resources.filter(r => r.status === 'available');
+  const bids: Bid[] = [];
+  const allocations: Allocation[] = [];
+  const assignedCases = new Set<string>();
+  const assignedResources = new Set<string>();
 
-  return {
-    bids: [{
-      id: '',
-      hospital_id: '',
-      round_id: roundId || 'demo_round',
-      case_id: safeCase,
-      resource_id: safeRes,
-      bid_score: 99.9,
-      reasoning: 'Fallback priority',
-      conditions: [],
-      created_at: new Date().toISOString(),
-    }],
-    allocations: [{
-      id: '',
-      hospital_id: '',
-      case_id: safeCase,
-      resource_id: safeRes,
-      round_id: roundId || '',
-      explanation: '',
-      created_at: new Date().toISOString(),
-    }],
-    explanation: 'Allocations routed through emergency fallback protocol due to network latency.',
-  };
+  // Sort cases by acuity (highest first) — allocate most critical first
+  const sortedCases = [...cases].sort((a, b) => b.acuity_score - a.acuity_score);
+
+  for (const c of sortedCases) {
+    for (const r of availableResources) {
+      if (assignedCases.has(c.id) || assignedResources.has(r.id)) continue;
+      if (c.required_resource_types.includes(r.type)) {
+        bids.push({
+          id: '',
+          hospital_id: '',
+          round_id: roundId || 'demo_round',
+          case_id: c.id,
+          resource_id: r.id,
+          bid_score: c.acuity_score * 10 + Math.random() * 5,
+          reasoning: `Fallback match: ${r.type} (${r.label}) satisfies case acuity ${c.acuity_score} needing ${c.required_resource_types.join(', ')}`,
+          conditions: [],
+          created_at: new Date().toISOString(),
+        });
+        allocations.push({
+          id: '',
+          hospital_id: '',
+          case_id: c.id,
+          resource_id: r.id,
+          round_id: roundId || '',
+          explanation: '',
+          approval_status: 'pending' as const,
+          created_at: new Date().toISOString(),
+        });
+        assignedCases.add(c.id);
+        assignedResources.add(r.id);
+        break;
+      }
+    }
+  }
+
+  const allocCount = allocations.length;
+  const explanation = allocCount > 0
+    ? `Emergency fallback: ${allocCount} allocation(s) made. ${allocations.map(a => {
+        const res = availableResources.find(r => r.id === a.resource_id);
+        const cas = cases.find(c => c.id === a.case_id);
+        return `${res?.type} (${res?.label}) → case acuity ${cas?.acuity_score}`;
+      }).join('; ')}. For full AI analysis, configure Groq and Mistral API keys in Settings.`
+    : 'Emergency fallback: no matching resources found for pending cases. Add available resources or configure API keys in Settings for AI-powered allocation.';
+
+  return { bids, allocations, explanation };
 }
 
 // ── Convert our Case → engine-friendly shape for the LLM prompt ──
@@ -140,6 +165,7 @@ export async function runNegotiationRound(
           resource_id: bid.resource_id,
           round_id: roundId || '',
           explanation: '',
+          approval_status: 'pending' as const,
           created_at: new Date().toISOString(),
         });
         assignedCases.add(bid.case_id);
@@ -151,7 +177,30 @@ export async function runNegotiationRound(
     let explanationText = 'Allocations processed successfully.';
     if (mistralClient) {
       try {
-        const prompt = `Allocations: ${JSON.stringify(allocations.map(a => ({ case_id: a.case_id, resource_id: a.resource_id })))}\nRaw Bids: ${JSON.stringify(allBids.map(b => ({ case_id: b.case_id, resource_id: b.resource_id, bid_score: b.bid_score, reasoning: b.reasoning })))}\nWrite a fast, 2-sentence explanation for hospital administrators.`;
+        const allocDetails = allocations.map(a => {
+          const matchedCase = validCases.find(c => c.id === a.case_id);
+          const matchedRes = resources.find(r => r.id === a.resource_id);
+          return {
+            case_id: a.case_id,
+            case_acuity: matchedCase?.acuity_score,
+            case_types: matchedCase?.required_resource_types,
+            resource_id: a.resource_id,
+            resource_type: matchedRes?.type,
+            resource_label: matchedRes?.label,
+            resource_department: matchedRes?.department,
+          };
+        });
+        const bidDetails = allBids.map(b => {
+          const matchedCase = validCases.find(c => c.id === b.case_id);
+          return {
+            case_acuity: matchedCase?.acuity_score,
+            case_types: matchedCase?.required_resource_types,
+            resource_id: b.resource_id,
+            bid_score: b.bid_score,
+            reasoning: b.reasoning,
+          };
+        });
+        const prompt = `You are a hospital emergency coordinator AI. Explain the following resource allocation decisions to hospital administrators.\n\nAllocated:\n${JSON.stringify(allocDetails, null, 2)}\n\nBid scores:\n${JSON.stringify(bidDetails, null, 2)}\n\nWrite a concise 2-3 sentence explanation. Mention specific cases (acuity level, resource type needed) and why each resource was matched. Be direct and professional.`;
         const response = await mistralClient.chat.complete({
           model: 'mistral-large-latest',
           messages: [{ role: 'user', content: prompt }],

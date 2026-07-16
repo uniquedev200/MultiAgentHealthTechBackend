@@ -3,21 +3,7 @@ export type EmergencyStatus = "active" | "resolved";
 export type CaseStatus = "pending" | "allocated" | "discharged";
 export type ResourceType = "or_slot" | "icu_bed" | "staff" | "equipment" | "er_bay";
 export type ResourceStatus = "available" | "occupied" | "reserved" | "offline";
-
-export interface Hospital {
-  id: string;
-  name: string;
-  email: string | null;
-  password_hash: string | null;
-  created_at: string;
-}
-
-export interface HospitalApiKey {
-  id: string;
-  hospital_id: string;
-  api_key: string;
-  created_at: string;
-}
+export type AllocationApprovalStatus = "pending" | "approved" | "rejected";
 
 export interface Emergency {
   id: string;
@@ -68,8 +54,6 @@ export interface Bid {
   created_at: string;
 }
 
-export type AllocationApprovalStatus = "pending" | "approved" | "rejected";
-
 export interface Allocation {
   id: string;
   hospital_id: string;
@@ -91,13 +75,14 @@ export interface AuditLogEntry {
   created_at: string;
 }
 
-export type LlmProvider = "groq" | "mistral";
+export interface EmergencyState {
+  cases: Case[];
+  resources: Resource[];
+  dependencies: ResourceDependency[];
+  allocations: Allocation[];
+}
 
-export interface HospitalLlmCredential {
-  id: string;
-  hospital_id: string;
-  provider: LlmProvider;
-  api_key_encrypted: string;
-  created_at: string;
-  updated_at: string;
+export interface RoundDetails {
+  bids: Bid[];
+  allocations: Allocation[];
 }

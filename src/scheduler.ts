@@ -152,13 +152,13 @@ async function triggerRound(emergencyId: string, hospitalId: string): Promise<st
         );
 
         await saveBids(roundId, result.bids, hospitalId);
-        await saveResult(roundId, result.allocations, result.explanation, hospitalId);
+        const savedAllocs = await saveResult(roundId, result.allocations, result.explanation, hospitalId);
 
         try {
           broadcast(emergencyId, 'round:completed', {
             roundId,
             emergencyId,
-            allocations: result.allocations,
+            allocations: savedAllocs,
             explanation: result.explanation,
           });
         } catch (broadcastErr) {
