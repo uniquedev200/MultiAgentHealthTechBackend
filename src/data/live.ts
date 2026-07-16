@@ -325,6 +325,29 @@ export async function listResources(
   return rows as Resource[];
 }
 
+// ── resetResources ────────────────────────────────────────────
+export async function resetResources(
+  hospitalId: string
+): Promise<{ resourcesReset: number; casesReverted: number; allocationsCleared: number }> {
+  const resResult = await query(
+    "UPDATE resources SET status = 'available' WHERE hospital_id = $1 AND status = 'occupied'",
+    [hospitalId]
+  );
+  const caseResult = await query(
+    "UPDATE cases SET status = 'pending' WHERE hospital_id = $1 AND status = 'allocated'",
+    [hospitalId]
+  );
+  const allocResult = await query(
+    "DELETE FROM allocations WHERE hospital_id = $1",
+    [hospitalId]
+  );
+  return {
+    resourcesReset: resResult.rowCount || 0,
+    casesReverted: caseResult.rowCount || 0,
+    allocationsCleared: allocResult.rowCount || 0,
+  };
+}
+
 // ── updateResourceStatus ──────────────────────────────────────
 export async function updateResourceStatus(
   resourceId: string,

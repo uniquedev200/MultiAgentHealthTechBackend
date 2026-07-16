@@ -127,6 +127,13 @@ class ApiClient {
     });
   }
 
+  async resetResources() {
+    return this.request<{ message: string; resourcesReset: number; casesReverted: number; allocationsCleared: number }>(
+      "POST",
+      "/admin/reset"
+    );
+  }
+
   // ── Audit Log ─────────────────────────────────────────────
   async getAuditLog(page = 1, limit = 20) {
     return this.request<{

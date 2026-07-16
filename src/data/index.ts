@@ -24,6 +24,7 @@ export const resolveEmergency = backend.resolveEmergency;
 export const updateEmergencyStatus = backend.updateEmergencyStatus;
 export const listResources = backend.listResources;
 export const updateResourceStatus = backend.updateResourceStatus;
+export const resetResources = backend.resetResources;
 export const getRoundDetails = backend.getRoundDetails;
 export const getAuditLog = backend.getAuditLog;
 export const upsertLLMKey = backend.upsertLLMKey;

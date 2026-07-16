@@ -2,7 +2,11 @@ import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
 import { findApiKey } from "./hospital";
 
-const JWT_SECRET = process.env.JWT_SECRET || "dev-jwt-secret-change-in-production";
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET environment variable is required");
+  return secret;
+}
 
 // ── Combined auth middleware: JWT first, then API key ─────────
 export async function authMiddleware(
@@ -21,7 +25,7 @@ export async function authMiddleware(
 
   // 1. Try JWT first
   try {
-    const payload = jwt.verify(token, JWT_SECRET) as { hospital_id: string };
+    const payload = jwt.verify(token, getJwtSecret()) as { hospital_id: string };
     if (payload && payload.hospital_id) {
       req.hospitalId = payload.hospital_id;
       next();
@@ -45,7 +49,7 @@ export async function authMiddleware(
 
 // ── Helper: generate JWT ─────────────────────────────────────
 export function generateToken(hospitalId: string): string {
-  return jwt.sign({ hospital_id: hospitalId }, JWT_SECRET, {
+  return jwt.sign({ hospital_id: hospitalId }, getJwtSecret(), {
     expiresIn: "24h",
   });
 }

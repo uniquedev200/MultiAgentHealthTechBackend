@@ -9,6 +9,7 @@ export default function ResourcesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [resetting, setResetting] = useState(false);
 
   useEffect(() => {
     loadResources();
@@ -37,6 +38,20 @@ export default function ResourcesPage() {
     }
   }
 
+  async function handleReset() {
+    if (!confirm("Reset all occupied resources to available and revert allocated cases?")) return;
+    setResetting(true);
+    try {
+      const result = await api.resetResources();
+      alert(`Done: ${result.resourcesReset} resources freed, ${result.casesReverted} cases reverted, ${result.allocationsCleared} allocations cleared`);
+      await loadResources();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setResetting(false);
+    }
+  }
+
   if (loading) {
     return <div className="flex items-center justify-center h-64 text-gray-400">Loading resources...</div>;
   }
@@ -59,9 +74,18 @@ export default function ResourcesPage() {
 
   return (
     <div>
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Resources</h1>
-        <p className="text-sm text-gray-500 mt-1">Manage hospital resource availability</p>
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Resources</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage hospital resource availability</p>
+        </div>
+        <button
+          onClick={handleReset}
+          disabled={resetting}
+          className="text-sm px-4 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors font-medium disabled:opacity-50"
+        >
+          {resetting ? "Resetting..." : "♻ Reset All to Available"}
+        </button>
       </div>
 
       {error && (

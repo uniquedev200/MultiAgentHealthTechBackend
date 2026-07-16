@@ -25,6 +25,7 @@ import {
   upsertLLMKey,
   deleteLLMKey,
   updateAllocationApproval,
+  resetResources,
   type SSEClient,
 } from "./data";
 import { scheduleEmergency, cancelSchedule } from "./scheduler";
@@ -32,6 +33,39 @@ import { scheduleEmergency, cancelSchedule } from "./scheduler";
 dotenv.config();
 
 const app = express();
+
+// ── Rate limiting (in-memory) ──────────────────────────────────
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX = 20; // max requests per window
+
+function rateLimit(key: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(key);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= RATE_LIMIT_MAX;
+}
+
+// Cleanup stale entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(key);
+  }
+}, 300_000);
+
+// ── Security headers ───────────────────────────────────────────
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
 
 // ── CORS — allow Vercel frontend + localhost dev ───────────────
 const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || "").split(",").map(s => s.trim()).filter(Boolean);
@@ -47,7 +81,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json());
+app.use(express.json({ limit: "100kb" }));
 
 const PORT = process.env.PORT || 3000;
 
@@ -59,6 +93,10 @@ app.get("/health", (_req, res) => {
 // ── POST /hospitals/register (no auth) ────────────────────────
 app.post("/hospitals/register", async (req, res) => {
   try {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    if (!rateLimit(`register:${ip}`)) {
+      return res.status(429).json({ error: "Too many requests. Try again later." });
+    }
     const { name, email, password } = req.body;
 
     if (!name || typeof name !== "string" || name.trim().length === 0) {
@@ -67,8 +105,8 @@ app.post("/hospitals/register", async (req, res) => {
     if (!email || typeof email !== "string" || email.trim().length === 0) {
       return res.status(400).json({ error: "email is required" });
     }
-    if (!password || typeof password !== "string" || password.length < 1) {
-      return res.status(400).json({ error: "password is required" });
+    if (!password || typeof password !== "string" || password.length < 8) {
+      return res.status(400).json({ error: "password must be at least 8 characters" });
     }
 
     const existing = await findHospitalByEmail(email.trim());
@@ -102,6 +140,10 @@ app.post("/hospitals/register", async (req, res) => {
 // ── POST /auth/login (no auth) ────────────────────────────────
 app.post("/auth/login", async (req, res) => {
   try {
+    const ip = req.ip || req.socket.remoteAddress || "unknown";
+    if (!rateLimit(`login:${ip}`)) {
+      return res.status(429).json({ error: "Too many requests. Try again later." });
+    }
     const { email, password } = req.body;
 
     if (!email || typeof email !== "string" || email.trim().length === 0) {
@@ -138,8 +180,14 @@ app.post("/auth/login", async (req, res) => {
 app.use(authMiddleware);
 
 // ── SSE endpoint ──────────────────────────────────────────────
-app.get("/emergencies/:id/stream", (req, res) => {
+app.get("/emergencies/:id/stream", async (req, res) => {
   const emergencyId = req.params.id;
+
+  // Cross-hospital guard: verify emergency belongs to this hospital
+  const emergency = await getEmergency(emergencyId, req.hospitalId);
+  if (!emergency) {
+    return res.status(404).json({ error: "Emergency not found" });
+  }
 
   res.writeHead(200, {
     "Content-Type": "text/event-stream",
@@ -349,9 +397,22 @@ app.patch("/resources/:id", async (req, res) => {
       return res.status(404).json({ error: "Resource not found" });
     }
 
-    broadcast("global", "resource_status_changed", updated);
+    // Note: resource status changes are reflected when loadState is called for an emergency
+    // No global broadcast needed — SSE clients get fresh resource data on next round
 
     res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── POST /admin/reset — free all resources + revert cases ──────
+app.post("/admin/reset", async (req, res) => {
+  try {
+    const result = await resetResources(req.hospitalId);
+    console.log(`[Admin] Reset for hospital ${req.hospitalId}:`, result);
+    res.json({ message: "Resources reset", ...result });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });

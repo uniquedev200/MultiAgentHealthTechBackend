@@ -363,6 +363,33 @@ export async function listResources(
   return fakeResources.filter((r) => r.hospital_id === hospitalId);
 }
 
+// ── resetResources ────────────────────────────────────────────
+export async function resetResources(
+  hospitalId: string
+): Promise<{ resourcesReset: number; casesReverted: number; allocationsCleared: number }> {
+  let resourcesReset = 0;
+  for (const r of fakeResources) {
+    if (r.hospital_id === hospitalId && r.status === "occupied") {
+      r.status = "available";
+      resourcesReset++;
+    }
+  }
+  let casesReverted = 0;
+  for (const c of fakeCases) {
+    if (c.hospital_id === hospitalId && c.status === "allocated") {
+      c.status = "pending";
+      casesReverted++;
+    }
+  }
+  const before = fakeAllocations.length;
+  for (let i = fakeAllocations.length - 1; i >= 0; i--) {
+    if (fakeAllocations[i].hospital_id === hospitalId) {
+      fakeAllocations.splice(i, 1);
+    }
+  }
+  return { resourcesReset, casesReverted, allocationsCleared: before - fakeAllocations.length };
+}
+
 // ── updateResourceStatus ──────────────────────────────────────
 export async function updateResourceStatus(
   resourceId: string,
