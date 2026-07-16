@@ -32,4 +32,7 @@ export const getLLMKeyStatus = backend.getLLMKeyStatus;
 export const deleteLLMKey = backend.deleteLLMKey;
 export const getLLMKeys = backend.getLLMKeys;
 export const updateAllocationApproval = backend.updateAllocationApproval;
+export const getComments = backend.getComments;
+export const addComment = backend.addComment;
+export const deleteComment = backend.deleteComment;
 export type SSEClient = fake.SSEClient;

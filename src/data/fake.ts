@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { createHash } from "crypto";
-import type { Case, Resource, ResourceDependency, Allocation, Bid, AuditLogEntry, Emergency, AllocationApprovalStatus } from "./types";
+import type { Case, Resource, ResourceDependency, Allocation, Bid, AuditLogEntry, Emergency, AllocationApprovalStatus, EmergencyComment } from "./types";
 
 const HOSP_A = "11111111-1111-1111-1111-111111111111";
 const HOSP_B = "22222222-2222-2222-2222-222222222222";
@@ -471,6 +471,45 @@ export async function updateAllocationApproval(
   }
 
   return alloc;
+}
+
+// ── Emergency comments (in-memory) ──────────────────────────
+const fakeComments: EmergencyComment[] = [];
+
+export async function getComments(emergencyId: string, hospitalId: string): Promise<EmergencyComment[]> {
+  return fakeComments
+    .filter((c) => c.emergency_id === emergencyId && c.hospital_id === hospitalId)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+export async function addComment(
+  emergencyId: string,
+  hospitalId: string,
+  author: string,
+  content: string
+): Promise<EmergencyComment> {
+  const comment: EmergencyComment = {
+    id: uuidv4(),
+    emergency_id: emergencyId,
+    hospital_id: hospitalId,
+    author,
+    content,
+    created_at: new Date().toISOString(),
+  };
+  fakeComments.push(comment);
+  return comment;
+}
+
+export async function deleteComment(
+  commentId: string,
+  hospitalId: string
+): Promise<boolean> {
+  const idx = fakeComments.findIndex(
+    (c) => c.id === commentId && c.hospital_id === hospitalId
+  );
+  if (idx === -1) return false;
+  fakeComments.splice(idx, 1);
+  return true;
 }
 
 // ── LLM credential management (in-memory) ────────────────────

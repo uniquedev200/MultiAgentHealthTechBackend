@@ -12,6 +12,7 @@ import type {
   Emergency,
   LlmProvider,
   AllocationApprovalStatus,
+  EmergencyComment,
 } from "../types";
 
 // ── SSE client store (shared across fake & live) ──────────────
@@ -446,6 +447,47 @@ export async function updateAllocationApproval(
   }
 
   return alloc || null;
+}
+
+// ── Emergency comments ──────────────────────────────────────
+export async function getComments(emergencyId: string, hospitalId: string): Promise<EmergencyComment[]> {
+  try {
+    const { rows } = await query(
+      `SELECT * FROM emergency_comments
+       WHERE emergency_id = $1 AND hospital_id = $2
+       ORDER BY created_at DESC`,
+      [emergencyId, hospitalId]
+    );
+    return rows as EmergencyComment[];
+  } catch {
+    return [];
+  }
+}
+
+export async function addComment(
+  emergencyId: string,
+  hospitalId: string,
+  author: string,
+  content: string
+): Promise<EmergencyComment> {
+  const { rows } = await query(
+    `INSERT INTO emergency_comments (emergency_id, hospital_id, author, content)
+     VALUES ($1, $2, $3, $4)
+     RETURNING *`,
+    [emergencyId, hospitalId, author, content]
+  );
+  return rows[0] as EmergencyComment;
+}
+
+export async function deleteComment(
+  commentId: string,
+  hospitalId: string
+): Promise<boolean> {
+  const { rowCount } = await query(
+    "DELETE FROM emergency_comments WHERE id = $1 AND hospital_id = $2",
+    [commentId, hospitalId]
+  );
+  return (rowCount ?? 0) > 0;
 }
 
 // ── LLM credential management ────────────────────────────────

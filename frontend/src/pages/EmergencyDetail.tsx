@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
-import type { Case, Resource, Allocation, Bid, AllocationApprovalStatus } from "../types";
+import type { Case, Resource, Allocation, Bid, AllocationApprovalStatus, EmergencyComment } from "../types";
 
 interface SSEEvent {
   id: number;
@@ -36,6 +36,11 @@ export default function EmergencyDetailPage() {
   const [error, setError] = useState("");
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
+  const [comments, setComments] = useState<EmergencyComment[]>([]);
+  const [commentAuthor, setCommentAuthor] = useState("");
+  const [commentContent, setCommentContent] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
+
   const evtId = useRef(0);
   const closeSSE = useRef<(() => void) | null>(null);
 
@@ -52,6 +57,8 @@ export default function EmergencyDetailPage() {
           return [...prev, ...newAllocs];
         });
       }
+      const cmts = await api.getComments(emergencyId);
+      setComments(cmts);
     } catch (err) {
       console.error("Failed to load state:", err);
     }
@@ -218,6 +225,30 @@ export default function EmergencyDetailPage() {
       setError(err.message);
     } finally {
       setApprovingId(null);
+    }
+  }
+
+  async function handleAddComment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!commentContent.trim() || !commentAuthor.trim()) return;
+    setSubmittingComment(true);
+    try {
+      const comment = await api.addComment(emergencyId, commentAuthor.trim(), commentContent.trim());
+      setComments((prev) => [comment, ...prev]);
+      setCommentContent("");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSubmittingComment(false);
+    }
+  }
+
+  async function handleDeleteComment(commentId: string) {
+    try {
+      await api.deleteComment(emergencyId, commentId);
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    } catch (err: any) {
+      setError(err.message);
     }
   }
 
@@ -592,6 +623,66 @@ export default function EmergencyDetailPage() {
                     {evt.type === "round:completed" && (
                       <RoundPreview data={evt.data as Record<string, unknown>} />
                     )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Comments */}
+          <div className="card">
+            <h2 className="text-lg font-semibold text-gray-900 mb-3">
+              Notes ({comments.length})
+            </h2>
+            <form onSubmit={handleAddComment} className="mb-4 space-y-2">
+              <input
+                type="text"
+                className="input"
+                placeholder="Your name"
+                value={commentAuthor}
+                onChange={(e) => setCommentAuthor(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  className="input flex-1"
+                  placeholder="Add a note..."
+                  value={commentContent}
+                  onChange={(e) => setCommentContent(e.target.value)}
+                />
+                <button
+                  type="submit"
+                  disabled={submittingComment || !commentContent.trim() || !commentAuthor.trim()}
+                  className="btn-primary"
+                >
+                  {submittingComment ? "..." : "Post"}
+                </button>
+              </div>
+            </form>
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {comments.length === 0 ? (
+                <p className="text-sm text-gray-400">No notes yet.</p>
+              ) : (
+                comments.map((c) => (
+                  <div
+                    key={c.id}
+                    className="text-xs bg-gray-50 rounded-lg px-3 py-2 border border-gray-100"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-semibold text-gray-700">{c.author}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400">
+                          {new Date(c.created_at).toLocaleString()}
+                        </span>
+                        <button
+                          onClick={() => handleDeleteComment(c.id)}
+                          className="text-gray-400 hover:text-red-500"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-gray-600">{c.content}</p>
                   </div>
                 ))
               )}

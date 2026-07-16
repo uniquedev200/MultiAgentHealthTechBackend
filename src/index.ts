@@ -26,6 +26,9 @@ import {
   deleteLLMKey,
   updateAllocationApproval,
   resetResources,
+  getComments,
+  addComment,
+  deleteComment,
   type SSEClient,
 } from "./data";
 import { scheduleEmergency, cancelSchedule } from "./scheduler";
@@ -557,6 +560,47 @@ app.patch("/allocations/:id/reject", async (req, res) => {
   }
 });
 
+// ── Emergency comments ────────────────────────────────────────
+app.get("/emergencies/:id/comments", async (req, res) => {
+  try {
+    const comments = await getComments(req.params.id, req.hospitalId);
+    res.json(comments);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.post("/emergencies/:id/comments", async (req, res) => {
+  try {
+    const { author, content } = req.body;
+    if (!content || !content.trim()) {
+      return res.status(400).json({ error: "content is required" });
+    }
+    if (!author || !author.trim()) {
+      return res.status(400).json({ error: "author is required" });
+    }
+    const emergency = await getEmergency(req.params.id, req.hospitalId);
+    if (!emergency) return res.status(404).json({ error: "Emergency not found" });
+    const comment = await addComment(req.params.id, req.hospitalId, author.trim(), content.trim());
+    res.status(201).json(comment);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.delete("/emergencies/:id/comments/:commentId", async (req, res) => {
+  try {
+    const deleted = await deleteComment(req.params.commentId, req.hospitalId);
+    if (!deleted) return res.status(404).json({ error: "Comment not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── 404 catch-all ─────────────────────────────────────────────
 app.use((_req, res) => {
   res.status(404).json({ error: "Not found" });
@@ -606,5 +650,8 @@ app.listen(PORT, () => {
   console.log(`   PUT    /settings/llm-keys/:provider`);
   console.log(`   DELETE /settings/llm-keys/:provider`);
   console.log(`   PATCH  /allocations/:id/approve  (HITL)`);
-  console.log(`   PATCH  /allocations/:id/reject   (HITL)\n`);
+  console.log(`   PATCH  /allocations/:id/reject   (HITL)`);
+  console.log(`   GET    /emergencies/:id/comments`);
+  console.log(`   POST   /emergencies/:id/comments`);
+  console.log(`   DELETE /emergencies/:id/comments/:commentId\n`);
 });

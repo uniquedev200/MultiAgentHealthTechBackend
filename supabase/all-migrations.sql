@@ -140,3 +140,18 @@ ALTER TABLE allocations
   CHECK (approval_status IN ('pending', 'approved', 'rejected'));
 
 CREATE INDEX IF NOT EXISTS idx_allocations_approval ON allocations(approval_status);
+
+-- PART 6: Emergency comments
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS emergency_comments (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  emergency_id  UUID NOT NULL REFERENCES emergencies(id) ON DELETE CASCADE,
+  hospital_id   UUID NOT NULL REFERENCES hospitals(id) ON DELETE CASCADE,
+  author        TEXT NOT NULL,
+  content       TEXT NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ecomments_emergency ON emergency_comments(emergency_id);
+CREATE INDEX IF NOT EXISTS idx_ecomments_hospital ON emergency_comments(hospital_id);

@@ -182,6 +182,29 @@ class ApiClient {
     );
   }
 
+  // ── Emergency Comments ────────────────────────────────────
+  async getComments(emergencyId: string) {
+    return this.request<import("./types").EmergencyComment[]>(
+      "GET",
+      `/emergencies/${emergencyId}/comments`
+    );
+  }
+
+  async addComment(emergencyId: string, author: string, content: string) {
+    return this.request<import("./types").EmergencyComment>(
+      "POST",
+      `/emergencies/${emergencyId}/comments`,
+      { author, content }
+    );
+  }
+
+  async deleteComment(emergencyId: string, commentId: string) {
+    return this.request<{ ok: boolean }>(
+      "DELETE",
+      `/emergencies/${emergencyId}/comments/${commentId}`
+    );
+  }
+
   // ── SSE ───────────────────────────────────────────────────
   openSSE(
     emergencyId: string,

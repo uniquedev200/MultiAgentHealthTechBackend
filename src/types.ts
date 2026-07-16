@@ -101,3 +101,12 @@ export interface HospitalLlmCredential {
   created_at: string;
   updated_at: string;
 }
+
+export interface EmergencyComment {
+  id: string;
+  emergency_id: string;
+  hospital_id: string;
+  author: string;
+  content: string;
+  created_at: string;
+}
