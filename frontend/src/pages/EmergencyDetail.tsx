@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams } from "react-router-dom";
 import { api } from "../api";
+import { useToast } from "../contexts/ToastContext";
 import type { Case, Resource, Allocation, Bid, AllocationApprovalStatus } from "../types";
 
 interface SSEEvent {
@@ -20,6 +21,7 @@ interface RoundInfo {
 export default function EmergencyDetailPage() {
   const { id } = useParams<{ id: string }>();
   const emergencyId = id!;
+  const { addToast } = useToast();
 
   const [cases, setCases] = useState<Case[]>([]);
   const [resources, setResources] = useState<Resource[]>([]);
@@ -72,19 +74,27 @@ export default function EmergencyDetailPage() {
         setConnected(true);
         loadState();
       } else if (eventType === "case_added") {
+        const c = data as Case;
+        addToast(`New case added (Acuity ${c.acuity_score})`, "info");
         setCases((prev) => {
-          const c = data as Case;
           if (prev.some((x) => x.id === c.id)) return prev;
           return [c, ...prev];
         });
       } else if (eventType === "bid_submitted") {
-        // Bids arrive live — handled in rounds
+        addToast("Bid received from agent", "success");
       } else if (eventType === "round:completed") {
         const round = data as {
           roundId: string;
           allocations: Allocation[];
           explanation: string;
         };
+        const count = round.allocations?.length || 0;
+        addToast(
+          count > 0
+            ? `Round complete — ${count} allocation${count > 1 ? "s" : ""} ready for review`
+            : "Round complete — no allocations",
+          count > 0 ? "success" : "info"
+        );
         // Use allocations from SSE event directly (reliable)
         setRounds((prev) => [
           {
@@ -138,6 +148,7 @@ export default function EmergencyDetailPage() {
           })
           .catch(() => {});
       } else if (eventType === "emergency_resolved") {
+        addToast("Emergency resolved!", "success");
         setResolved(true);
         loadState();
       }
