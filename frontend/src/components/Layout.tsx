@@ -1,16 +1,34 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import type { UserRole } from "../types";
 
-const NAV = [
-  { to: "/", label: "Dashboard", icon: "📊" },
-  { to: "/emergencies", label: "Emergencies", icon: "🚨" },
-  { to: "/resources", label: "Resources", icon: "🩺" },
-  { to: "/audit", label: "Audit Log", icon: "📋" },
-  { to: "/settings", label: "Settings", icon: "⚙️" },
+const ALL_NAV = [
+  { to: "/", label: "Dashboard", icon: "📊", minRole: null as UserRole[] | null },
+  { to: "/emergencies", label: "Emergencies", icon: "🚨", minRole: null },
+  { to: "/resources", label: "Resources", icon: "🩺", minRole: null },
+  { to: "/audit", label: "Audit Log", icon: "📋", minRole: ["admin", "department_head", "doctor", "nurse", "triage_officer"] as UserRole[] },
+  { to: "/settings", label: "Settings", icon: "⚙️", minRole: ["admin"] as UserRole[] },
 ];
 
+const ROLE_LABELS: Record<UserRole, string> = {
+  admin: "Administrator",
+  department_head: "Department Head",
+  doctor: "Doctor",
+  nurse: "Nurse",
+  triage_officer: "Triage Officer",
+  paramedic: "Paramedic",
+  charge_nurse: "Charge Nurse",
+};
+
 export default function Layout() {
-  const { hospitalName, logout } = useAuth();
+  const { hospitalName, userRole, userId, logout, hasRole } = useAuth();
+
+  // Filter nav based on role
+  const nav = ALL_NAV.filter(item => {
+    if (!item.minRole) return true;
+    if (!userRole) return true; // API key access sees everything
+    return item.minRole.some(r => userRole === r) || userRole === "admin";
+  });
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -27,7 +45,7 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 py-4 px-3 space-y-1">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -52,7 +70,14 @@ export default function Layout() {
               <p className="text-sm font-medium text-gray-200 truncate">
                 {hospitalName || "Hospital"}
               </p>
-              <p className="text-[11px] text-gray-500">Signed in</p>
+              {userId && userRole && (
+                <p className="text-[11px] text-brand-400 truncate">
+                  {ROLE_LABELS[userRole] || userRole}
+                </p>
+              )}
+              {!userId && (
+                <p className="text-[11px] text-gray-500">API Key Access</p>
+              )}
             </div>
             <button
               onClick={logout}

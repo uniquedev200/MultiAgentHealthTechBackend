@@ -1,8 +1,55 @@
 export type EmergencyScope = "individual" | "mass";
 export type EmergencyStatus = "active" | "resolved";
-export type CaseStatus = "pending" | "allocated" | "discharged";
+export type CaseStatus = "pending" | "allocated" | "discharged" | "approved" | "rejected";
 export type ResourceType = "or_slot" | "icu_bed" | "staff" | "equipment" | "er_bay";
 export type ResourceStatus = "available" | "occupied" | "reserved" | "offline";
+export type UserRole = "admin" | "department_head" | "doctor" | "nurse" | "triage_officer" | "paramedic" | "charge_nurse";
+export type PatientGender = "male" | "female" | "non-binary" | "unknown";
+export type BloodType = "A+" | "A-" | "B+" | "B-" | "AB+" | "AB-" | "O+" | "O-" | "unknown";
+export type SymptomSeverity = "mild" | "moderate" | "severe" | "critical";
+
+export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
+  admin: ["manage_users", "manage_settings", "declare_emergency", "add_case", "approve_allocation", "view_audit"],
+  department_head: ["declare_emergency", "add_case", "approve_allocation", "view_audit"],
+  doctor: ["add_case", "view_audit"],
+  nurse: ["add_case", "view_audit"],
+  triage_officer: ["add_case", "view_audit"],
+  paramedic: ["add_case"],
+  charge_nurse: ["add_case", "view_audit"],
+};
+
+export interface User {
+  id: string;
+  hospital_id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  password_hash: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Patient {
+  id: string;
+  hospital_id: string;
+  name: string;
+  age: number;
+  gender: PatientGender;
+  blood_type: BloodType;
+  medical_history: string;
+  allergies: string;
+  current_medications: string;
+  created_at: string;
+}
+
+export interface VitalSigns {
+  heart_rate?: number;
+  blood_pressure?: string;
+  sp_o2?: number;
+  temperature?: number;
+  respiratory_rate?: number;
+}
 
 export interface Hospital {
   id: string;
@@ -22,11 +69,14 @@ export interface HospitalApiKey {
 export interface Emergency {
   id: string;
   hospital_id: string;
+  name: string;
   scope: EmergencyScope;
   status: EmergencyStatus;
   department_reach: string[];
   declared_at: string;
   resolved_at: string | null;
+  case_count?: number;
+  patient_names?: string[];
 }
 
 export interface Case {
@@ -37,6 +87,14 @@ export interface Case {
   status: CaseStatus;
   required_resource_types: string[];
   created_at: string;
+  patient_id: string | null;
+  patient_name: string;
+  symptoms: string;
+  symptom_severity: SymptomSeverity;
+  vital_signs: VitalSigns;
+  triage_note: string;
+  suggested_resource_types: string[];
+  created_by: string | null;
 }
 
 export interface Resource {
@@ -89,6 +147,7 @@ export interface AuditLogEntry {
   prev_hash: string | null;
   hash: string;
   created_at: string;
+  description?: string;
 }
 
 export type LlmProvider = "groq" | "mistral";

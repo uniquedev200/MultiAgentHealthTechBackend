@@ -1,26 +1,45 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import { useAuth } from "../contexts/AuthContext";
 import type { Resource, AuditLogEntry } from "../types";
 
 interface Stats {
   resources: Resource[];
   auditEntries: AuditLogEntry[];
   auditTotal: number;
+  emergencyCount: number;
 }
+
+const ROLE_DESCRIPTIONS: Record<string, string> = {
+  admin: "Full access to all features including team management and settings.",
+  department_head: "Can declare emergencies and approve allocations.",
+  doctor: "Can add patient cases and view audit logs.",
+  nurse: "Can add patient cases and view audit logs.",
+  triage_officer: "Can add patient cases and view audit logs.",
+  paramedic: "Can add patient cases.",
+  charge_nurse: "Can add patient cases and view audit logs.",
+};
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const { userRole, hasRole } = useAuth();
 
   useEffect(() => {
     (async () => {
       try {
-        const [resources, audit] = await Promise.all([
+        const [resources, audit, emergencies] = await Promise.all([
           api.listResources(),
           api.getAuditLog(1, 5),
+          api.getEmergencies(),
         ]);
-        setStats({ resources, auditEntries: audit.entries, auditTotal: audit.total });
+        setStats({
+          resources,
+          auditEntries: audit.entries,
+          auditTotal: audit.total,
+          emergencyCount: emergencies.length,
+        });
       } catch (err) {
         console.error(err);
       } finally {
@@ -45,47 +64,53 @@ export default function DashboardPage() {
         <p className="text-sm text-gray-500 mt-1">Overview of your hospital resources</p>
       </div>
 
+      {/* Role Info */}
+      {userRole && (
+        <div className="card mb-6 bg-brand-50/50 border-brand-100">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-brand-100 flex items-center justify-center text-lg">
+              👤
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-brand-900">
+                Logged in as: {userRole.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+              </p>
+              <p className="text-xs text-brand-700">
+                {ROLE_DESCRIPTIONS[userRole] || ""}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <StatCard
-          label="Total Resources"
-          value={total}
-          icon="🩺"
-          color="brand"
-        />
-        <StatCard
-          label="Available"
-          value={available}
-          icon="✅"
-          color="emerald"
-        />
-        <StatCard
-          label="Occupied"
-          value={occupied}
-          icon="🔒"
-          color="amber"
-        />
-        <StatCard
-          label="Offline"
-          value={offline}
-          icon="⛔"
-          color="red"
-        />
+        <StatCard label="Total Resources" value={total} icon="🩺" color="brand" />
+        <StatCard label="Available" value={available} icon="✅" color="emerald" />
+        <StatCard label="Occupied" value={occupied} icon="🔒" color="amber" />
+        <StatCard label="Active Emergencies" value={stats?.emergencyCount || 0} icon="🚨" color="red" />
       </div>
 
       {/* Quick actions */}
       <div className="card mb-8">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
         <div className="flex flex-wrap gap-3">
-          <Link to="/emergencies" className="btn-primary">
-            🚨 Declare Emergency
+          {hasRole("admin", "department_head") && (
+            <Link to="/emergencies" className="btn-primary">
+              Declare Emergency
+            </Link>
+          )}
+          <Link to="/emergencies" className="btn-secondary">
+            View Emergencies
           </Link>
           <Link to="/resources" className="btn-secondary">
-            🩺 Manage Resources
+            Manage Resources
           </Link>
-          <Link to="/settings" className="btn-secondary">
-            ⚙️ LLM Keys
-          </Link>
+          {hasRole("admin") && (
+            <Link to="/settings" className="btn-secondary">
+              Settings
+            </Link>
+          )}
         </div>
       </div>
 
@@ -105,11 +130,17 @@ export default function DashboardPage() {
                     ? "🤖"
                     : entry.event_type === "emergency_resolved"
                     ? "✅"
+                    : entry.event_type === "case_added"
+                    ? "📋"
+                    : entry.event_type === "allocation_approved"
+                    ? "👍"
+                    : entry.event_type === "allocation_rejected"
+                    ? "👎"
                     : "📝"}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-900">
-                    {entry.event_type.replace(/_/g, " ")}
+                    {entry.description || entry.event_type.replace(/_/g, " ")}
                   </p>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {new Date(entry.created_at).toLocaleString()}

@@ -20,6 +20,7 @@ function checkResourceDependencies(
 }
 
 // ── Fallback data (when APIs are unreachable) ─────────────────
+// Includes starvation prevention: pending cases get a priority boost over time
 function getFallbackData(
   cases: Case[],
   resources: Resource[],
@@ -31,21 +32,33 @@ function getFallbackData(
   const assignedCases = new Set<string>();
   const assignedResources = new Set<string>();
 
-  // Sort cases by acuity (highest first) — allocate most critical first
-  const sortedCases = [...cases].sort((a, b) => b.acuity_score - a.acuity_score);
+  // Starvation prevention: boost priority for cases pending > 30s
+  const now = Date.now();
+  const scoredCases = cases.map(c => {
+    const ageMs = now - new Date(c.created_at).getTime();
+    const ageBoost = Math.min(0.3, ageMs / 300000); // up to +0.3 over 5 minutes
+    const basePriority = ((c.acuity_score - 1) / 4) * 0.7 + 0.1; // 0.1-0.8 based on acuity
+    return { case: c, priority: Math.min(1, basePriority + ageBoost) };
+  }).sort((a, b) => b.priority - a.priority);
 
-  for (const c of sortedCases) {
+  for (const { case: c, priority } of scoredCases) {
     for (const r of availableResources) {
       if (assignedCases.has(c.id) || assignedResources.has(r.id)) continue;
-      if (c.required_resource_types.includes(r.type)) {
+      const effectiveTypes = c.required_resource_types.length > 0
+        ? c.required_resource_types
+        : c.suggested_resource_types;
+      if (effectiveTypes.includes(r.type)) {
+        const clinicalContext = c.symptoms
+          ? ` [Patient: ${c.symptoms}]`
+          : '';
         bids.push({
           id: '',
           hospital_id: '',
           round_id: roundId || 'demo_round',
           case_id: c.id,
           resource_id: r.id,
-          bid_score: c.acuity_score * 10 + Math.random() * 5,
-          reasoning: `Fallback match: ${r.type} (${r.label}) satisfies case acuity ${c.acuity_score} needing ${c.required_resource_types.join(', ')}`,
+          bid_score: Math.min(1, Math.max(0, priority + Math.random() * 0.05)),
+          reasoning: `Fallback match: ${r.type} (${r.label}) for priority ${priority.toFixed(2)}${clinicalContext}`,
           conditions: [],
           created_at: new Date().toISOString(),
         });
@@ -71,7 +84,8 @@ function getFallbackData(
     ? `Emergency fallback: ${allocCount} allocation(s) made. ${allocations.map(a => {
         const res = availableResources.find(r => r.id === a.resource_id);
         const cas = cases.find(c => c.id === a.case_id);
-        return `${res?.type} (${res?.label}) → case acuity ${cas?.acuity_score}`;
+        const clinical = cas?.symptoms ? ` — ${cas.symptoms}` : '';
+        return `${res?.type} (${res?.label}) → acuity ${cas?.acuity_score}${clinical}`;
       }).join('; ')}. For full AI analysis, configure Groq and Mistral API keys in Settings.`
     : 'Emergency fallback: no matching resources found for pending cases. Add available resources or configure API keys in Settings for AI-powered allocation.';
 
@@ -80,12 +94,26 @@ function getFallbackData(
 
 // ── Convert our Case → engine-friendly shape for the LLM prompt ──
 function caseForLLM(c: Case): Record<string, unknown> {
-  return {
+  const result: Record<string, unknown> = {
     id: c.id,
     acuity_score: c.acuity_score,
     status: c.status,
     required_resource_types: c.required_resource_types,
   };
+
+  // Include clinical data when available
+  if (c.symptoms) result.symptoms = c.symptoms;
+  if (c.symptom_severity) result.symptom_severity = c.symptom_severity;
+  if (c.triage_note) result.triage_note = c.triage_note;
+  if (c.suggested_resource_types?.length) result.suggested_resource_types = c.suggested_resource_types;
+
+  // Include vital signs if present
+  if (c.vital_signs && typeof c.vital_signs === 'object') {
+    const vitals = c.vital_signs as Record<string, unknown>;
+    if (Object.keys(vitals).length > 0) result.vital_signs = vitals;
+  }
+
+  return result;
 }
 
 function resourceForLLM(r: Resource): Record<string, unknown> {
@@ -184,6 +212,8 @@ export async function runNegotiationRound(
             case_id: a.case_id,
             case_acuity: matchedCase?.acuity_score,
             case_types: matchedCase?.required_resource_types,
+            case_symptoms: matchedCase?.symptoms || undefined,
+            case_triage_note: matchedCase?.triage_note || undefined,
             resource_id: a.resource_id,
             resource_type: matchedRes?.type,
             resource_label: matchedRes?.label,
@@ -195,12 +225,21 @@ export async function runNegotiationRound(
           return {
             case_acuity: matchedCase?.acuity_score,
             case_types: matchedCase?.required_resource_types,
+            case_symptoms: matchedCase?.symptoms || undefined,
             resource_id: b.resource_id,
             bid_score: b.bid_score,
             reasoning: b.reasoning,
           };
         });
-        const prompt = `You are a hospital emergency coordinator AI. Explain the following resource allocation decisions to hospital administrators.\n\nAllocated:\n${JSON.stringify(allocDetails, null, 2)}\n\nBid scores:\n${JSON.stringify(bidDetails, null, 2)}\n\nWrite a concise 2-3 sentence explanation. Mention specific cases (acuity level, resource type needed) and why each resource was matched. Be direct and professional.`;
+        const prompt = `You are a hospital emergency coordinator AI. Explain the following resource allocation decisions to hospital administrators.
+
+Allocated:
+${JSON.stringify(allocDetails, null, 2)}
+
+Bid scores:
+${JSON.stringify(bidDetails, null, 2)}
+
+Write a concise 2-3 sentence explanation. Mention specific cases (acuity level, symptoms, resource type needed) and why each resource was matched. Be direct and professional. Reference clinical details when available.`;
         const response = await mistralClient.chat.complete({
           model: 'mistral-large-latest',
           messages: [{ role: 'user', content: prompt }],
@@ -229,7 +268,25 @@ async function evaluateSingleResource(
 ): Promise<Bid[]> {
   if (!groqClient) return [];
 
-  const systemPrompt = `You are an autonomous agent managing a hospital resource: ${JSON.stringify(resourceForLLM(resource))}. Evaluate the pending cases and decide which one you want to bid on.`;
+  const resourceShape = resourceForLLM(resource);
+  const systemPrompt = `You are an autonomous agent managing a hospital resource: ${JSON.stringify(resourceShape)}.
+
+Your job is to evaluate pending emergency cases and decide which ones you can best serve with this resource.
+
+When evaluating cases, consider:
+- Clinical urgency: Higher acuity scores (5=critical, 1=minor) indicate more urgent need
+- Required vs suggested resource types: Prioritize cases that explicitly need your resource type
+- Vital signs: Abnormal vitals (high HR, low SpO2, abnormal BP) indicate sicker patients
+- Triage notes: Clinical context helps you understand the full picture
+- FAIRNESS: If a case has been pending longer, it deserves higher priority to prevent starvation
+
+IMPORTANT RULES:
+1. The bid_score MUST be between 0.0 and 1.0 (inclusive).
+   - 1.0 = highest urgency, perfect resource match
+   - 0.0 = no urgency, poor match
+2. You may bid on MULTIPLE cases (not just one). Evaluate each case independently.
+3. For each case, decide: should I allocate this resource to this case? If yes, bid.
+4. Never bid on the same case with different resource_id values in one response.`;
   const userMessage = `Pending Cases: ${JSON.stringify(cases.map(caseForLLM))}`;
 
   try {
@@ -279,7 +336,7 @@ async function evaluateSingleResource(
       round_id: roundId || '',
       case_id: b.case_id,
       resource_id: resource.id,
-      bid_score: b.bid_score,
+      bid_score: Math.min(1, Math.max(0, Number(b.bid_score) || 0)),
       reasoning: b.reasoning,
       conditions: b.conditions || [],
       created_at: new Date().toISOString(),

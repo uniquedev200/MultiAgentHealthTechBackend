@@ -36,7 +36,6 @@ class ApiClient {
     if (!res.ok) {
       const err = data as { error?: string };
       if (res.status === 401) {
-        // Token is invalid — clear auth and let React redirect to login
         this.token = null;
         localStorage.removeItem("sievege_auth");
         window.location.href = "/login";
@@ -59,8 +58,51 @@ class ApiClient {
     return this.request<{
       token: string;
       hospital_id: string;
+      user_id?: string;
       name: string;
+      role?: string;
     }>("POST", "/auth/login", { email, password });
+  }
+
+  // ── Users ─────────────────────────────────────────────────
+  async getUsers() {
+    return this.request<import("./types").User[]>("GET", "/users");
+  }
+
+  async getMe() {
+    return this.request<import("./types").User & { role?: string }>("GET", "/users/me");
+  }
+
+  async createUser(email: string, fullName: string, role: string, password: string) {
+    return this.request<import("./types").User>("POST", "/auth/register-user", {
+      email, full_name: fullName, role, password,
+    });
+  }
+
+  async updateUserRole(userId: string, role: string) {
+    return this.request<import("./types").User>("PATCH", `/users/${userId}/role`, { role });
+  }
+
+  async deleteUser(userId: string) {
+    return this.request<{ ok: boolean }>("DELETE", `/users/${userId}`);
+  }
+
+  // ── Patients ──────────────────────────────────────────────
+  async createPatient(data: {
+    name: string;
+    age: number;
+    gender?: string;
+    blood_type?: string;
+    medical_history?: string;
+    allergies?: string;
+    current_medications?: string;
+  }) {
+    return this.request<import("./types").Patient>("POST", "/patients", data);
+  }
+
+  async listPatients(search?: string) {
+    const q = search ? `?search=${encodeURIComponent(search)}` : "";
+    return this.request<import("./types").Patient[]>("GET", `/patients${q}`);
   }
 
   // ── Health ────────────────────────────────────────────────
@@ -73,11 +115,18 @@ class ApiClient {
     return this.request<import("./types").Emergency[]>("GET", "/emergencies");
   }
 
-  async declareEmergency(scope: string, department_reach: string[]) {
+  async searchEmergencies(q: string) {
+    return this.request<import("./types").Emergency[]>(
+      "GET",
+      `/emergencies/search?q=${encodeURIComponent(q)}`
+    );
+  }
+
+  async declareEmergency(scope: string, department_reach: string[], name?: string) {
     return this.request<{ id: string; [k: string]: unknown }>(
       "POST",
       "/emergencies",
-      { scope, department_reach }
+      { scope, department_reach, name }
     );
   }
 
@@ -92,13 +141,22 @@ class ApiClient {
 
   async addCase(
     emergencyId: string,
-    acuity_score: number,
-    required_resource_types: string[]
+    required_resource_types: string[],
+    clinicalData?: {
+      patient_id?: string;
+      patient_name?: string;
+      symptoms?: string;
+      vital_signs?: Record<string, unknown>;
+      triage_note?: string;
+      suggested_resource_types?: string[];
+      age?: number;
+      medical_history?: string;
+    }
   ) {
     return this.request<{ id: string; [k: string]: unknown }>(
       "POST",
       `/emergencies/${emergencyId}/cases`,
-      { acuity_score, required_resource_types }
+      { required_resource_types, ...clinicalData }
     );
   }
 
@@ -135,13 +193,16 @@ class ApiClient {
   }
 
   // ── Audit Log ─────────────────────────────────────────────
-  async getAuditLog(page = 1, limit = 20) {
+  async getAuditLog(page = 1, limit = 20, filters?: { event_type?: string; search?: string }) {
+    let params = `page=${page}&limit=${limit}`;
+    if (filters?.event_type) params += `&event_type=${encodeURIComponent(filters.event_type)}`;
+    if (filters?.search) params += `&search=${encodeURIComponent(filters.search)}`;
     return this.request<{
       entries: import("./types").AuditLogEntry[];
       page: number;
       limit: number;
       total: number;
-    }>("GET", `/audit-log?page=${page}&limit=${limit}`);
+    }>("GET", `/audit-log?${params}`);
   }
 
   // ── LLM Keys ─────────────────────────────────────────────
@@ -179,6 +240,20 @@ class ApiClient {
     return this.request<import("./types").Allocation>(
       "PATCH",
       `/allocations/${allocationId}/reject`
+    );
+  }
+
+  async approveCase(caseId: string) {
+    return this.request<import("./types").Case>(
+      "PATCH",
+      `/cases/${caseId}/approve`
+    );
+  }
+
+  async rejectCase(caseId: string) {
+    return this.request<import("./types").Case>(
+      "PATCH",
+      `/cases/${caseId}/reject`
     );
   }
 

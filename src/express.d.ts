@@ -1,9 +1,11 @@
-import { Request } from "express";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-declare global {
-  namespace Express {
-    interface Request {
-      hospitalId: string;
-    }
+type UserRoleLiteral = "admin" | "department_head" | "doctor" | "nurse" | "triage_officer" | "paramedic" | "charge_nurse";
+
+declare namespace Express {
+  interface Request {
+    hospitalId: string;
+    userId?: string;
+    userRole?: UserRoleLiteral;
   }
 }

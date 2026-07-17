@@ -7,11 +7,14 @@ import {
   type ReactNode,
 } from "react";
 import { api } from "../api";
+import type { UserRole } from "../types";
 
 interface AuthState {
   token: string | null;
   hospitalId: string | null;
   hospitalName: string | null;
+  userId: string | null;
+  userRole: UserRole | null;
 }
 
 interface AuthCtx extends AuthState {
@@ -19,6 +22,7 @@ interface AuthCtx extends AuthState {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
   loading: boolean;
+  hasRole: (...roles: UserRole[]) => boolean;
 }
 
 const AuthContext = createContext<AuthCtx | null>(null);
@@ -26,8 +30,9 @@ const AuthContext = createContext<AuthCtx | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AuthState>(() => {
     const saved = localStorage.getItem("sievege_auth");
-    const s = saved ? JSON.parse(saved) : { token: null, hospitalId: null, hospitalName: null };
-    // Set token synchronously so first render has it
+    const s = saved
+      ? JSON.parse(saved)
+      : { token: null, hospitalId: null, hospitalName: null, userId: null, userRole: null };
     api.setToken(s.token);
     return s;
   });
@@ -50,6 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token: res.token,
         hospitalId: res.hospital_id,
         hospitalName: res.name,
+        userId: res.user_id || null,
+        userRole: (res.role as UserRole) || null,
       });
     } finally {
       setLoading(false);
@@ -64,6 +71,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token: res.api_key,
         hospitalId: res.hospital_id,
         hospitalName: res.name,
+        userId: null,
+        userRole: null,
       });
     } finally {
       setLoading(false);
@@ -71,11 +80,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
-    setState({ token: null, hospitalId: null, hospitalName: null });
+    setState({ token: null, hospitalId: null, hospitalName: null, userId: null, userRole: null });
   }, []);
 
+  const hasRole = useCallback(
+    (...roles: UserRole[]) => {
+      if (!state.userRole) return false;
+      return roles.includes(state.userRole);
+    },
+    [state.userRole]
+  );
+
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout, loading }}>
+    <AuthContext.Provider value={{ ...state, login, register, logout, loading, hasRole }}>
       {children}
     </AuthContext.Provider>
   );

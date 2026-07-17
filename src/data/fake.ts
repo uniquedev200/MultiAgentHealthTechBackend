@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from "uuid";
 import { createHash } from "crypto";
-import type { Case, Resource, ResourceDependency, Allocation, Bid, AuditLogEntry, Emergency, AllocationApprovalStatus } from "./types";
+import type { Case, Resource, ResourceDependency, Allocation, Bid, AuditLogEntry, Emergency, AllocationApprovalStatus, User, Patient, UserRole, SymptomSeverity } from "./types";
 
 const HOSP_A = "11111111-1111-1111-1111-111111111111";
 const HOSP_B = "22222222-2222-2222-2222-222222222222";
@@ -15,6 +15,14 @@ const fakeCases: Case[] = [
     status: "pending",
     required_resource_types: ["icu_bed", "staff"],
     created_at: new Date().toISOString(),
+    patient_id: null,
+    patient_name: "John Doe",
+    symptoms: "Chest pain, shortness of breath, diaphoresis",
+    symptom_severity: "severe",
+    vital_signs: { heart_rate: 120, blood_pressure: "90/60", sp_o2: 92, temperature: 38.2 },
+    triage_note: "67yo male, acute onset chest pain, history of CAD",
+    suggested_resource_types: ["icu_bed", "staff", "equipment"],
+    created_by: null,
   },
   {
     id: "case-002",
@@ -24,6 +32,14 @@ const fakeCases: Case[] = [
     status: "pending",
     required_resource_types: ["er_bay"],
     created_at: new Date().toISOString(),
+    patient_id: null,
+    patient_name: "Jane Smith",
+    symptoms: "Ankle swelling, pain on weight bearing",
+    symptom_severity: "mild",
+    vital_signs: { heart_rate: 82, blood_pressure: "120/78", sp_o2: 98, temperature: 36.8 },
+    triage_note: "28yo female, possible ankle fracture",
+    suggested_resource_types: ["er_bay"],
+    created_by: null,
   },
 ];
 
@@ -94,6 +110,7 @@ const fakeEmergencies: Emergency[] = [
   {
     id: "emo-001",
     hospital_id: HOSP_A,
+    name: "Multi-Vehicle Accident — Highway 101",
     scope: "mass",
     status: "active",
     department_reach: ["Surgery", "Emergency", "ICU"],
@@ -102,9 +119,36 @@ const fakeEmergencies: Emergency[] = [
   },
 ];
 
+const fakePatients: Patient[] = [];
+
 // ── SSE client store (shared) ─────────────────────────────────
 export type SSEClient = { id: string; res: import("express").Response };
 export const sseClients = new Map<string, SSEClient[]>();
+
+// ── Helper: generate human-readable audit description ────────
+function describeAuditEvent(eventType: string, payload: Record<string, unknown>): string {
+  switch (eventType) {
+    case "round_saved": {
+      const allocs = (payload.allocations as Array<{ caseId: string; resourceId: string }>) || [];
+      const count = allocs.length;
+      return count > 0
+        ? `Negotiation round completed. ${count} resource allocation${count > 1 ? "s" : ""} made.`
+        : "Negotiation round completed. No resources were allocated.";
+    }
+    case "emergency_declared":
+      return "New emergency declared by hospital staff.";
+    case "emergency_resolved":
+      return "Emergency resolved — all cases have been addressed.";
+    case "case_added":
+      return "New patient case added to the emergency.";
+    case "allocation_approved":
+      return "An allocation was approved by staff.";
+    case "allocation_rejected":
+      return "An allocation was rejected by staff.";
+    default:
+      return eventType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+}
 
 // ── Core function 1: loadState ────────────────────────────────
 export async function loadState(
@@ -190,6 +234,7 @@ export async function saveResult(
     hospital_id: hospitalId,
     event_type: "round_saved",
     payload: auditPayload,
+    description: describeAuditEvent("round_saved", auditPayload),
     prev_hash: prevHash,
     hash,
     created_at: new Date().toISOString(),
@@ -286,6 +331,22 @@ export async function getEmergencies(
     .sort((a, b) => new Date(b.declared_at).getTime() - new Date(a.declared_at).getTime());
 }
 
+// ── searchEmergencies ────────────────────────────────────────
+export async function searchEmergencies(
+  hospitalId: string,
+  query: string
+): Promise<Emergency[]> {
+  const q = query.toLowerCase();
+  return fakeEmergencies
+    .filter(e => e.hospital_id === hospitalId)
+    .filter(e =>
+      e.scope.toLowerCase().includes(q) ||
+      e.department_reach.some(d => d.toLowerCase().includes(q)) ||
+      e.status.toLowerCase().includes(q)
+    )
+    .sort((a, b) => new Date(b.declared_at).getTime() - new Date(a.declared_at).getTime());
+}
+
 // ── resolveEmergency ──────────────────────────────────────────
 export async function resolveEmergency(
   emergencyId: string,
@@ -321,11 +382,13 @@ export async function updateEmergencyStatus(
 export async function createEmergency(
   scope: string,
   department_reach: string[],
-  hospitalId: string
+  hospitalId: string,
+  name?: string
 ): Promise<Emergency> {
   const emergency: Emergency = {
     id: `emo-${Date.now()}`,
     hospital_id: hospitalId,
+    name: name || (scope === "mass" ? "Mass Casualty Incident" : "Individual Emergency"),
     scope: scope as Emergency["scope"],
     status: "active",
     department_reach,
@@ -333,6 +396,22 @@ export async function createEmergency(
     resolved_at: null,
   };
   fakeEmergencies.push(emergency);
+
+  // Audit log
+  const payload = { emergencyId: emergency.id, scope, department_reach };
+  const prevHash = fakeAuditLog.length > 0 ? fakeAuditLog[fakeAuditLog.length - 1].hash : null;
+  const hash = createHash("sha256").update(JSON.stringify(payload) + (prevHash || "")).digest("hex");
+  fakeAuditLog.push({
+    id: `audit-${Date.now()}`,
+    hospital_id: hospitalId,
+    event_type: "emergency_declared",
+    payload,
+    description: describeAuditEvent("emergency_declared", payload),
+    prev_hash: prevHash,
+    hash,
+    created_at: new Date().toISOString(),
+  });
+
   return emergency;
 }
 
@@ -341,7 +420,17 @@ export async function createCase(
   emergencyId: string,
   acuityScore: number,
   requiredResourceTypes: string[],
-  hospitalId: string
+  hospitalId: string,
+  clinicalData?: {
+    patientId?: string;
+    patientName?: string;
+    symptoms?: string;
+    symptomSeverity?: SymptomSeverity;
+    vitalSigns?: Record<string, unknown>;
+    triageNote?: string;
+    suggestedResourceTypes?: string[];
+    createdBy?: string;
+  }
 ): Promise<Case> {
   const newCase: Case = {
     id: `case-${Date.now()}`,
@@ -351,9 +440,67 @@ export async function createCase(
     status: "pending",
     required_resource_types: requiredResourceTypes,
     created_at: new Date().toISOString(),
+    patient_id: clinicalData?.patientId || null,
+    patient_name: clinicalData?.patientName || "",
+    symptoms: clinicalData?.symptoms || "",
+    symptom_severity: clinicalData?.symptomSeverity || "moderate",
+    vital_signs: (clinicalData?.vitalSigns as Record<string, unknown>) || {},
+    triage_note: clinicalData?.triageNote || "",
+    suggested_resource_types: clinicalData?.suggestedResourceTypes || [],
+    created_by: clinicalData?.createdBy || null,
   };
   fakeCases.push(newCase);
+
+  // Audit log
+  const payload = { caseId: newCase.id, emergencyId, acuityScore, requiredResourceTypes, symptoms: newCase.symptoms };
+  const prevHash = fakeAuditLog.length > 0 ? fakeAuditLog[fakeAuditLog.length - 1].hash : null;
+  const hash = createHash("sha256").update(JSON.stringify(payload) + (prevHash || "")).digest("hex");
+  fakeAuditLog.push({
+    id: `audit-${Date.now()}`,
+    hospital_id: hospitalId,
+    event_type: "case_added",
+    payload,
+    description: describeAuditEvent("case_added", payload),
+    prev_hash: prevHash,
+    hash,
+    created_at: new Date().toISOString(),
+  });
+
   return newCase;
+}
+
+// ── Patient CRUD ──────────────────────────────────────────────
+export async function createPatient(
+  hospitalId: string,
+  data: Omit<Patient, "id" | "hospital_id" | "created_at">
+): Promise<Patient> {
+  const patient: Patient = {
+    id: uuidv4(),
+    hospital_id: hospitalId,
+    ...data,
+    created_at: new Date().toISOString(),
+  };
+  fakePatients.push(patient);
+  return patient;
+}
+
+export async function getPatient(
+  patientId: string,
+  hospitalId: string
+): Promise<Patient | null> {
+  return fakePatients.find(p => p.id === patientId && p.hospital_id === hospitalId) || null;
+}
+
+export async function listPatients(
+  hospitalId: string,
+  search?: string
+): Promise<Patient[]> {
+  let patients = fakePatients.filter(p => p.hospital_id === hospitalId);
+  if (search) {
+    const q = search.toLowerCase();
+    patients = patients.filter(p => p.name.toLowerCase().includes(q));
+  }
+  return patients.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 // ── listResources ─────────────────────────────────────────────
@@ -423,9 +570,20 @@ export async function getRoundDetails(
 export async function getAuditLog(
   page: number,
   limit: number,
-  hospitalId: string
+  hospitalId: string,
+  filters?: { eventType?: string; search?: string }
 ): Promise<{ entries: AuditLogEntry[]; total: number }> {
-  const filtered = fakeAuditLog.filter((e) => e.hospital_id === hospitalId);
+  let filtered = fakeAuditLog.filter((e) => e.hospital_id === hospitalId);
+  if (filters?.eventType) {
+    filtered = filtered.filter(e => e.event_type === filters.eventType);
+  }
+  if (filters?.search) {
+    const q = filters.search.toLowerCase();
+    filtered = filtered.filter(e =>
+      (e.description || e.event_type).toLowerCase().includes(q) ||
+      JSON.stringify(e.payload).toLowerCase().includes(q)
+    );
+  }
   const offset = (page - 1) * limit;
   return {
     entries: filtered.slice(offset, offset + limit),
@@ -446,6 +604,22 @@ export async function updateAllocationApproval(
   );
   if (!alloc) return null;
   alloc.approval_status = approvalStatus;
+
+  // Audit log
+  const eventType = approvalStatus === "approved" ? "allocation_approved" : "allocation_rejected";
+  const payload = { allocationId, caseId: alloc.case_id, resourceId: alloc.resource_id, action: approvalStatus };
+  const prevHash = fakeAuditLog.length > 0 ? fakeAuditLog[fakeAuditLog.length - 1].hash : null;
+  const hash = createHash("sha256").update(JSON.stringify(payload) + (prevHash || "")).digest("hex");
+  fakeAuditLog.push({
+    id: `audit-${Date.now()}`,
+    hospital_id: hospitalId,
+    event_type: eventType,
+    payload,
+    description: describeAuditEvent(eventType, payload),
+    prev_hash: prevHash,
+    hash,
+    created_at: new Date().toISOString(),
+  });
 
   if (approvalStatus === "rejected") {
     const resource = fakeResources.find(
@@ -508,4 +682,16 @@ export async function getLLMKeys(hospitalId: string): Promise<{ groqKey: string;
     groqKey: groqCred ? decryptCredential(groqCred.api_key_encrypted) : (process.env.GROQ_API_KEY || ""),
     mistralKey: mistralCred ? decryptCredential(mistralCred.api_key_encrypted) : (process.env.MISTRAL_API_KEY || ""),
   };
+}
+
+export async function approveCase(caseId: string, hospitalId: string): Promise<Case | null> {
+  const c = fakeCases.find(c => c.id === caseId && c.hospital_id === hospitalId && c.status === "pending");
+  if (c) c.status = "approved";
+  return c || null;
+}
+
+export async function rejectCase(caseId: string, hospitalId: string): Promise<Case | null> {
+  const c = fakeCases.find(c => c.id === caseId && c.hospital_id === hospitalId && c.status === "pending");
+  if (c) c.status = "rejected";
+  return c || null;
 }

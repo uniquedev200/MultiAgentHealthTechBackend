@@ -1,11 +1,19 @@
+/// <reference path="./express.d.ts" />
 import express from "express";
 import dotenv from "dotenv";
-import { authMiddleware, generateToken } from "./auth";
+import { authMiddleware, generateToken, requireRole, requirePermission } from "./auth";
 import { hashPassword, comparePassword } from "./password";
 import {
   findHospitalByEmail,
   createHospital,
   createApiKey,
+  findUserByEmail,
+  findUserByEmailGlobal,
+  findUserById,
+  listUsers,
+  createUser,
+  updateUserRole,
+  deleteUser,
 } from "./hospital";
 import {
   loadState,
@@ -19,18 +27,29 @@ import {
   getAuditLog,
   getEmergency,
   getEmergencies,
+  searchEmergencies,
   resolveEmergency,
   updateEmergencyStatus,
   getLLMKeyStatus,
   upsertLLMKey,
   deleteLLMKey,
   updateAllocationApproval,
+  approveCase,
+  rejectCase,
   resetResources,
+  createPatient,
+  listPatients,
   type SSEClient,
 } from "./data";
 import { scheduleEmergency, cancelSchedule } from "./scheduler";
+import type { UserRole } from "./types";
 
 dotenv.config();
+
+// ── Express 5 helper: params values are `string | string[]` ───
+function paramStr(val: string | string[]): string {
+  return Array.isArray(val) ? val[0] : val;
+}
 
 const app = express();
 
@@ -138,6 +157,7 @@ app.post("/hospitals/register", async (req, res) => {
 });
 
 // ── POST /auth/login (no auth) ────────────────────────────────
+// Supports both hospital-level login (email matches hospital) and user-level login
 app.post("/auth/login", async (req, res) => {
   try {
     const ip = req.ip || req.socket.remoteAddress || "unknown";
@@ -153,6 +173,23 @@ app.post("/auth/login", async (req, res) => {
       return res.status(400).json({ error: "password is required" });
     }
 
+    // 1. Try user-level login first
+    const user = await findUserByEmailGlobal(email.trim());
+    if (user && user.is_active) {
+      const valid = await comparePassword(password, user.password_hash);
+      if (valid) {
+        const token = generateToken(user.hospital_id, user.id, user.role);
+        return res.json({
+          token,
+          hospital_id: user.hospital_id,
+          user_id: user.id,
+          name: user.full_name,
+          role: user.role,
+        });
+      }
+    }
+
+    // 2. Fall back to hospital-level login
     const hospital = await findHospitalByEmail(email.trim());
     if (!hospital || !hospital.password_hash) {
       return res.status(401).json({ error: "Invalid email or password" });
@@ -176,15 +213,128 @@ app.post("/auth/login", async (req, res) => {
   }
 });
 
+// ── POST /auth/register-user (admin creates user) ────────────
+app.post("/auth/register-user", authMiddleware, requireRole("admin"), async (req, res) => {
+  try {
+    const { email, full_name, role, password } = req.body;
+    if (!email || !full_name || !role || !password) {
+      return res.status(400).json({ error: "email, full_name, role, and password are required" });
+    }
+    const validRoles: UserRole[] = ["admin", "department_head", "doctor", "nurse", "triage_officer", "paramedic", "charge_nurse"];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(", ")}` });
+    }
+
+    const existing = await findUserByEmail(req.hospitalId!, email.trim());
+    if (existing) {
+      return res.status(409).json({ error: "A user with this email already exists in this hospital" });
+    }
+
+    const user = await createUser(req.hospitalId!, email.trim(), full_name.trim(), role, password);
+    const { password_hash: _, ...safeUser } = user;
+    res.status(201).json(safeUser);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── GET /users — list all users for this hospital ─────────────
+app.get("/users", authMiddleware, requireRole("admin", "department_head"), async (req, res) => {
+  try {
+    const users = await listUsers(req.hospitalId!);
+    res.json(users);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── GET /users/me — current user info ─────────────────────────
+app.get("/users/me", authMiddleware, async (req, res) => {
+  try {
+    if (!req.userId) {
+      // API key access — return hospital-level info
+      return res.json({ hospital_id: req.hospitalId, role: null, full_name: "API User" });
+    }
+    const user = await findUserById(req.userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const { password_hash: _, ...safeUser } = user;
+    res.json(safeUser);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── PATCH /users/:id/role — change user role (admin only) ─────
+app.patch("/users/:id/role", authMiddleware, requireRole("admin"), async (req, res) => {
+  try {
+    const { role } = req.body;
+    const validRoles: UserRole[] = ["admin", "department_head", "doctor", "nurse", "triage_officer", "paramedic", "charge_nurse"];
+    if (!role || !validRoles.includes(role)) {
+      return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(", ")}` });
+    }
+    const updated = await updateUserRole(paramStr(req.params.id), role, req.hospitalId!);
+    if (!updated) return res.status(404).json({ error: "User not found" });
+    const { password_hash: _, ...safeUser } = updated;
+    res.json(safeUser);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── DELETE /users/:id — delete user (admin only) ──────────────
+app.delete("/users/:id", authMiddleware, requireRole("admin"), async (req, res) => {
+  try {
+    const deleted = await deleteUser(paramStr(req.params.id), req.hospitalId!);
+    if (!deleted) return res.status(404).json({ error: "User not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── Patient endpoints ──────────────────────────────────────────
+app.post("/patients", authMiddleware, requirePermission("add_case"), async (req, res) => {
+  try {
+    const { name, age, gender, blood_type, medical_history, allergies, current_medications } = req.body;
+    if (!name || age === undefined) {
+      return res.status(400).json({ error: "name and age are required" });
+    }
+    const patient = await createPatient(req.hospitalId!, {
+      name, age, gender: gender || "unknown", blood_type: blood_type || "unknown",
+      medical_history: medical_history || "", allergies: allergies || "", current_medications: current_medications || "",
+    });
+    res.status(201).json(patient);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+app.get("/patients", authMiddleware, requirePermission("add_case"), async (req, res) => {
+  try {
+    const search = (req.query.search as string) || undefined;
+    const patients = await listPatients(req.hospitalId!, search);
+    res.json(patients);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 // ── Auth middleware on all routes below ────────────────────────
 app.use(authMiddleware);
 
 // ── SSE endpoint ──────────────────────────────────────────────
 app.get("/emergencies/:id/stream", async (req, res) => {
-  const emergencyId = req.params.id;
+  const emergencyId = paramStr(req.params.id);
 
   // Cross-hospital guard: verify emergency belongs to this hospital
-  const emergency = await getEmergency(emergencyId, req.hospitalId);
+  const emergency = await getEmergency(emergencyId, req.hospitalId!);
   if (!emergency) {
     return res.status(404).json({ error: "Emergency not found" });
   }
@@ -234,9 +384,9 @@ const VALID_DEPARTMENTS = [
   "Anesthesiology", "Internal Medicine", "Laboratory", "Pharmacy",
 ];
 
-app.post("/emergencies", async (req, res) => {
+app.post("/emergencies", requirePermission("declare_emergency"), async (req, res) => {
   try {
-    const { scope, department_reach } = req.body;
+    const { scope, department_reach, name } = req.body;
     if (!scope || !["individual", "mass"].includes(scope)) {
       return res
         .status(400)
@@ -260,7 +410,8 @@ app.post("/emergencies", async (req, res) => {
     const emergency = await createEmergency(
       scope,
       department_reach,
-      req.hospitalId
+      req.hospitalId!,
+      name
     );
     broadcast(emergency.id, "emergency_declared", emergency);
 
@@ -272,27 +423,30 @@ app.post("/emergencies", async (req, res) => {
 });
 
 // ── POST /emergencies/:id/cases — add a case ─────────────────
-app.post("/emergencies/:id/cases", async (req, res) => {
+app.post("/emergencies/:id/cases", requirePermission("add_case"), async (req, res) => {
   try {
-    const emergencyId = req.params.id;
-    const { acuity_score, required_resource_types } = req.body;
+    const emergencyId = paramStr(req.params.id);
+    const {
+      acuity_score,
+      required_resource_types,
+      // Clinical fields
+      patient_id,
+      patient_name,
+      symptoms,
+      vital_signs,
+      triage_note,
+      suggested_resource_types,
+      // Additional clinical context for acuity scoring
+      age,
+      medical_history,
+    } = req.body;
 
     // Cross-hospital guard: verify emergency belongs to this hospital
-    const emergency = await getEmergency(emergencyId, req.hospitalId);
+    const emergency = await getEmergency(emergencyId, req.hospitalId!);
     if (!emergency) {
       return res.status(404).json({ error: "Emergency not found" });
     }
 
-    if (acuity_score === undefined || typeof acuity_score !== "number") {
-      return res
-        .status(400)
-        .json({ error: "acuity_score must be a number (1-5)" });
-    }
-    if (acuity_score < 1 || acuity_score > 5) {
-      return res
-        .status(400)
-        .json({ error: "acuity_score must be between 1 and 5" });
-    }
     if (
       !Array.isArray(required_resource_types) ||
       required_resource_types.length === 0
@@ -302,25 +456,87 @@ app.post("/emergencies/:id/cases", async (req, res) => {
         .json({ error: "required_resource_types must be a non-empty array" });
     }
 
+    // Auto-compute acuity from clinical data (no manual input needed)
+    let computedAcuity: number;
+    if (acuity_score !== undefined && typeof acuity_score === "number" && acuity_score >= 1 && acuity_score <= 5) {
+      // Allow manual override for backward compatibility
+      computedAcuity = acuity_score;
+    } else {
+      // Auto-derive from vitals, symptoms, age, medical history
+      const { computeAcuityFromClinicalData } = await import("./clinical-scoring");
+      computedAcuity = computeAcuityFromClinicalData({
+        vitals: vital_signs,
+        symptoms,
+        medicalHistory: medical_history,
+        age: typeof age === "number" ? age : undefined,
+      });
+    }
+
+    // Auto-derive severity from computed acuity
+    const acuityToSeverity: Record<number, string> = { 5: "critical", 4: "severe", 3: "moderate", 2: "mild", 1: "mild" };
+    const derivedSeverity = acuityToSeverity[computedAcuity] || "moderate";
+
     const newCase = await createCase(
       emergencyId,
-      acuity_score,
+      computedAcuity,
       required_resource_types,
-      req.hospitalId
+      req.hospitalId!,
+      {
+        patientId: patient_id,
+        patientName: patient_name,
+        symptoms,
+        symptomSeverity: derivedSeverity as import("./types").SymptomSeverity,
+        vitalSigns: vital_signs,
+        triageNote: triage_note,
+        suggestedResourceTypes: suggested_resource_types,
+        createdBy: req.userId,
+      }
     );
     broadcast(emergencyId, "case_added", newCase);
 
     // Reactivate emergency if it was auto-resolved
     if (emergency.status === "resolved") {
-      await updateEmergencyStatus(emergencyId, "active", req.hospitalId);
-      const refreshed = await getEmergency(emergencyId, req.hospitalId);
+      await updateEmergencyStatus(emergencyId, "active", req.hospitalId!);
+      const refreshed = await getEmergency(emergencyId, req.hospitalId!);
       if (refreshed) broadcast(emergencyId, "emergency_reactivated", refreshed);
     }
 
     // Trigger negotiation scheduler (debounced — rapid case additions batch together)
-    scheduleEmergency(emergencyId, req.hospitalId);
+    scheduleEmergency(emergencyId, req.hospitalId!);
 
     res.status(201).json(newCase);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── PATCH /cases/:id/approve — admin approves a case ──────
+app.patch("/cases/:id/approve", requirePermission("add_case"), async (req, res) => {
+  try {
+    const caseId = paramStr(req.params.id);
+    const updated = await approveCase(caseId, req.hospitalId!);
+    if (!updated) {
+      return res.status(404).json({ error: "Case not found or not pending" });
+    }
+    broadcast(updated.emergency_id, "case_approved", updated);
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── PATCH /cases/:id/reject — admin rejects a case ────────
+app.patch("/cases/:id/reject", requirePermission("add_case"), async (req, res) => {
+  try {
+    const caseId = paramStr(req.params.id);
+    const updated = await rejectCase(caseId, req.hospitalId!);
+    if (!updated) {
+      return res.status(404).json({ error: "Case not found or not pending" });
+    }
+    broadcast(updated.emergency_id, "case_rejected", updated);
+    res.json(updated);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -330,8 +546,23 @@ app.post("/emergencies/:id/cases", async (req, res) => {
 // ── GET /emergencies — list all emergencies for this hospital ─
 app.get("/emergencies", async (req, res) => {
   try {
-    const emergencies = await getEmergencies(req.hospitalId);
+    const emergencies = await getEmergencies(req.hospitalId!);
     res.json(emergencies);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ── GET /emergencies/search?q= — search emergencies ──────────
+app.get("/emergencies/search", async (req, res) => {
+  try {
+    const q = (req.query.q as string) || "";
+    if (!q.trim()) {
+      return res.json(await getEmergencies(req.hospitalId!));
+    }
+    const results = await searchEmergencies(req.hospitalId!, q);
+    res.json(results);
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -342,13 +573,13 @@ app.get("/emergencies", async (req, res) => {
 app.get("/emergencies/:id", async (req, res) => {
   try {
     // Cross-hospital guard: verify emergency belongs to this hospital
-    const emergency = await getEmergency(req.params.id, req.hospitalId);
+    const emergency = await getEmergency(paramStr(req.params.id), req.hospitalId!);
     if (!emergency) {
       return res.status(404).json({ error: "Emergency not found" });
     }
 
-    const state = await loadState(req.params.id, req.hospitalId);
-    res.json(state);
+    const state = await loadState(paramStr(req.params.id), req.hospitalId!);
+    res.json({ ...state, emergency });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Internal server error" });
@@ -359,17 +590,17 @@ app.get("/emergencies/:id", async (req, res) => {
 app.get("/emergencies/:id/rounds/:roundId", async (req, res) => {
   try {
     // Cross-hospital guard
-    const emergency = await getEmergency(req.params.id, req.hospitalId);
+    const emergency = await getEmergency(paramStr(req.params.id), req.hospitalId!);
     if (!emergency) {
       return res.status(404).json({ error: "Emergency not found" });
     }
 
-    const details = await getRoundDetails(req.params.roundId, req.hospitalId);
+    const details = await getRoundDetails(paramStr(req.params.roundId), req.hospitalId!);
 
     if (details.bids.length === 0 && details.allocations.length === 0) {
       return res
         .status(404)
-        .json({ error: `Round "${req.params.roundId}" not found` });
+        .json({ error: `Round "${paramStr(req.params.roundId)}" not found` });
     }
 
     res.json(details);
@@ -382,7 +613,7 @@ app.get("/emergencies/:id/rounds/:roundId", async (req, res) => {
 // ── GET /resources — list all resources ────────────────────────
 app.get("/resources", async (req, res) => {
   try {
-    const resources = await listResources(req.hospitalId);
+    const resources = await listResources(req.hospitalId!);
     res.json(resources);
   } catch (err) {
     console.error(err);
@@ -404,16 +635,13 @@ app.patch("/resources/:id", async (req, res) => {
     }
 
     const updated = await updateResourceStatus(
-      req.params.id,
+      paramStr(req.params.id),
       status,
-      req.hospitalId
+      req.hospitalId!
     );
     if (!updated) {
       return res.status(404).json({ error: "Resource not found" });
     }
-
-    // Note: resource status changes are reflected when loadState is called for an emergency
-    // No global broadcast needed — SSE clients get fresh resource data on next round
 
     res.json(updated);
   } catch (err) {
@@ -423,9 +651,9 @@ app.patch("/resources/:id", async (req, res) => {
 });
 
 // ── POST /admin/reset — free all resources + revert cases ──────
-app.post("/admin/reset", async (req, res) => {
+app.post("/admin/reset", requireRole("admin"), async (req, res) => {
   try {
-    const result = await resetResources(req.hospitalId);
+    const result = await resetResources(req.hospitalId!);
     console.log(`[Admin] Reset for hospital ${req.hospitalId}:`, result);
     res.json({ message: "Resources reset", ...result });
   } catch (err) {
@@ -437,8 +665,8 @@ app.post("/admin/reset", async (req, res) => {
 // ── PATCH /emergencies/:id/resolve ─────────────────────────────
 app.patch("/emergencies/:id/resolve", async (req, res) => {
   try {
-    const emergencyId = req.params.id;
-    const emergency = await getEmergency(emergencyId, req.hospitalId);
+    const emergencyId = paramStr(req.params.id);
+    const emergency = await getEmergency(emergencyId, req.hospitalId!);
     if (!emergency) {
       return res.status(404).json({ error: "Emergency not found" });
     }
@@ -448,9 +676,9 @@ app.patch("/emergencies/:id/resolve", async (req, res) => {
         .json({ error: "Emergency is already resolved" });
     }
 
-    await resolveEmergency(emergencyId, req.hospitalId);
+    await resolveEmergency(emergencyId, req.hospitalId!);
     cancelSchedule(emergencyId);
-    const updated = await getEmergency(emergencyId, req.hospitalId);
+    const updated = await getEmergency(emergencyId, req.hospitalId!);
     if (!updated) {
       return res.status(500).json({ error: "Internal server error" });
     }
@@ -472,8 +700,10 @@ app.get("/audit-log", async (req, res) => {
       100,
       Math.max(1, parseInt(req.query.limit as string) || 20)
     );
+    const eventType = (req.query.event_type as string) || undefined;
+    const search = (req.query.search as string) || undefined;
 
-    const { entries, total } = await getAuditLog(page, limit, req.hospitalId);
+    const { entries, total } = await getAuditLog(page, limit, req.hospitalId!, { eventType, search });
 
     res.json({
       entries,
@@ -490,7 +720,7 @@ app.get("/audit-log", async (req, res) => {
 // ── GET /settings/llm-keys — credential status ────────────────
 app.get("/settings/llm-keys", async (req, res) => {
   try {
-    const status = await getLLMKeyStatus(req.hospitalId);
+    const status = await getLLMKeyStatus(req.hospitalId!);
     res.json(status);
   } catch (err) {
     console.error(err);
@@ -501,7 +731,7 @@ app.get("/settings/llm-keys", async (req, res) => {
 // ── PUT /settings/llm-keys/:provider — upsert key ─────────────
 app.put("/settings/llm-keys/:provider", async (req, res) => {
   try {
-    const { provider } = req.params;
+    const provider = paramStr(req.params.provider);
     if (provider !== "groq" && provider !== "mistral") {
       return res.status(400).json({ error: "provider must be 'groq' or 'mistral'" });
     }
@@ -510,7 +740,7 @@ app.put("/settings/llm-keys/:provider", async (req, res) => {
       return res.status(400).json({ error: "api_key is required" });
     }
 
-    await upsertLLMKey(req.hospitalId, provider, api_key.trim());
+    await upsertLLMKey(req.hospitalId!, provider, api_key.trim());
     res.json({ ok: true, provider, configured: true });
   } catch (err) {
     console.error(err);
@@ -521,12 +751,12 @@ app.put("/settings/llm-keys/:provider", async (req, res) => {
 // ── DELETE /settings/llm-keys/:provider — remove key ──────────
 app.delete("/settings/llm-keys/:provider", async (req, res) => {
   try {
-    const { provider } = req.params;
+    const provider = paramStr(req.params.provider);
     if (provider !== "groq" && provider !== "mistral") {
       return res.status(400).json({ error: "provider must be 'groq' or 'mistral'" });
     }
 
-    await deleteLLMKey(req.hospitalId, provider);
+    await deleteLLMKey(req.hospitalId!, provider);
     res.json({ ok: true, provider, configured: false });
   } catch (err) {
     console.error(err);
@@ -537,7 +767,7 @@ app.delete("/settings/llm-keys/:provider", async (req, res) => {
 // ── HITL: Approve/Reject allocations ──────────────────────────
 app.patch("/allocations/:id/approve", async (req, res) => {
   try {
-    const updated = await updateAllocationApproval(req.params.id, "approved", req.hospitalId);
+    const updated = await updateAllocationApproval(paramStr(req.params.id), "approved", req.hospitalId!);
     if (!updated) return res.status(404).json({ error: "Allocation not found" });
     res.json(updated);
   } catch (err) {
@@ -548,7 +778,7 @@ app.patch("/allocations/:id/approve", async (req, res) => {
 
 app.patch("/allocations/:id/reject", async (req, res) => {
   try {
-    const updated = await updateAllocationApproval(req.params.id, "rejected", req.hospitalId);
+    const updated = await updateAllocationApproval(paramStr(req.params.id), "rejected", req.hospitalId!);
     if (!updated) return res.status(404).json({ error: "Allocation not found" });
     res.json(updated);
   } catch (err) {
@@ -592,9 +822,18 @@ app.listen(PORT, () => {
   );
   console.log(`   POST   /hospitals/register  (no auth)`);
   console.log(`   POST   /auth/login          (no auth)`);
+  console.log(`   POST   /auth/register-user  (admin)`);
   console.log(`   GET    /health              (no auth)`);
+  console.log(`   GET    /users               (admin/dept_head)`);
+  console.log(`   GET    /users/me`);
+  console.log(`   PATCH  /users/:id/role      (admin)`);
+  console.log(`   DELETE /users/:id           (admin)`);
+  console.log(`   POST   /patients            (add_case perm)`);
+  console.log(`   GET    /patients            (add_case perm)`);
   console.log(`   GET    /emergencies/:id/stream  (SSE)`);
   console.log(`   POST   /emergencies`);
+  console.log(`   GET    /emergencies`);
+  console.log(`   GET    /emergencies/search?q=`);
   console.log(`   GET    /emergencies/:id`);
   console.log(`   POST   /emergencies/:id/cases`);
   console.log(`   GET    /emergencies/:id/rounds/:roundId`);

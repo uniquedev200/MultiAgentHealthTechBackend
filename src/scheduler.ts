@@ -5,7 +5,7 @@ import { loadState, getEmergency, saveBids, saveResult, broadcast, getLLMKeys } 
 import type { Bid } from './types';
 
 // ── Config ────────────────────────────────────────────────────
-const DEBOUNCE_MS = parseInt(process.env.DEBOUNCE_MS || '3000', 10);
+const DEBOUNCE_MS = parseInt(process.env.DEBOUNCE_MS || '8000', 10);  // 8s window to collect competing cases
 const ROUND_COOLDOWN_MS = parseInt(process.env.ROUND_COOLDOWN_MS || '5000', 10);
 const MAX_RETRIES = parseInt(process.env.MAX_RETRIES || '3', 10);
 

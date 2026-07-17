@@ -12,11 +12,40 @@ import type {
   Emergency,
   LlmProvider,
   AllocationApprovalStatus,
+  User,
+  Patient,
+  UserRole,
+  SymptomSeverity,
 } from "../types";
 
 // ── SSE client store (shared across fake & live) ──────────────
 export type SSEClient = { id: string; res: import("express").Response };
 export const sseClients = new Map<string, SSEClient[]>();
+
+// ── Helper: generate human-readable audit description ────────
+function describeAuditEvent(eventType: string, payload: Record<string, unknown>): string {
+  switch (eventType) {
+    case "round_saved": {
+      const allocs = (payload.allocations as Array<{ caseId: string; resourceId: string }>) || [];
+      const count = allocs.length;
+      return count > 0
+        ? `Negotiation round completed. ${count} resource allocation${count > 1 ? "s" : ""} made.`
+        : "Negotiation round completed. No resources were allocated.";
+    }
+    case "emergency_declared":
+      return "New emergency declared by hospital staff.";
+    case "emergency_resolved":
+      return "Emergency resolved — all cases have been addressed.";
+    case "case_added":
+      return "New patient case added to the emergency.";
+    case "allocation_approved":
+      return "An allocation was approved by staff.";
+    case "allocation_rejected":
+      return "An allocation was rejected by staff.";
+    default:
+      return eventType.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  }
+}
 
 // ── Core function 1: loadState ────────────────────────────────
 export async function loadState(
@@ -253,8 +282,32 @@ export async function getEmergencies(
   hospitalId: string
 ): Promise<Emergency[]> {
   const { rows } = await query(
-    "SELECT * FROM emergencies WHERE hospital_id = $1 ORDER BY declared_at DESC",
+    `SELECT e.*,
+       (SELECT count(*) FROM cases c WHERE c.emergency_id = e.id) as case_count,
+       (SELECT array_agg(DISTINCT c.patient_name) FILTER (WHERE c.patient_name != '') FROM cases c WHERE c.emergency_id = e.id AND c.patient_name != '') as patient_names
+     FROM emergencies e
+     WHERE e.hospital_id = $1
+     ORDER BY e.declared_at DESC`,
     [hospitalId]
+  );
+  return rows as Emergency[];
+}
+
+// ── searchEmergencies ────────────────────────────────────────
+export async function searchEmergencies(
+  hospitalId: string,
+  searchQuery: string
+): Promise<Emergency[]> {
+  const q = `%${searchQuery}%`;
+  const { rows } = await query(
+    `SELECT e.*,
+       (SELECT count(*) FROM cases c WHERE c.emergency_id = e.id) as case_count,
+       (SELECT array_agg(DISTINCT c.patient_name) FILTER (WHERE c.patient_name != '') FROM cases c WHERE c.emergency_id = e.id AND c.patient_name != '') as patient_names
+     FROM emergencies e
+     WHERE e.hospital_id = $1
+     AND (e.scope ILIKE $2 OR $2 = ANY(e.department_reach) OR e.status ILIKE $2 OR e.name ILIKE $2)
+     ORDER BY e.declared_at DESC`,
+    [hospitalId, q]
   );
   return rows as Emergency[];
 }
@@ -287,13 +340,15 @@ export async function updateEmergencyStatus(
 export async function createEmergency(
   scope: string,
   department_reach: string[],
-  hospitalId: string
+  hospitalId: string,
+  name?: string
 ): Promise<Emergency> {
+  const emergencyName = name || `${scope === "mass" ? "Mass Casualty" : "Individual Emergency"} — ${department_reach.slice(0, 3).join(", ")} (${new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true })})`;
   const { rows } = await query(
-    `INSERT INTO emergencies (scope, department_reach, hospital_id)
-     VALUES ($1, $2, $3)
+    `INSERT INTO emergencies (name, scope, department_reach, hospital_id)
+     VALUES ($1, $2, $3, $4)
      RETURNING *`,
-    [scope, department_reach, hospitalId]
+    [emergencyName, scope, department_reach, hospitalId]
   );
   return rows[0] as Emergency;
 }
@@ -303,15 +358,79 @@ export async function createCase(
   emergencyId: string,
   acuityScore: number,
   requiredResourceTypes: string[],
-  hospitalId: string
+  hospitalId: string,
+  clinicalData?: {
+    patientId?: string;
+    patientName?: string;
+    symptoms?: string;
+    symptomSeverity?: SymptomSeverity;
+    vitalSigns?: Record<string, unknown>;
+    triageNote?: string;
+    suggestedResourceTypes?: string[];
+    createdBy?: string;
+  }
 ): Promise<Case> {
   const { rows } = await query(
-    `INSERT INTO cases (emergency_id, acuity_score, required_resource_types, hospital_id)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO cases (emergency_id, acuity_score, required_resource_types, hospital_id, patient_id, patient_name, symptoms, symptom_severity, vital_signs, triage_note, suggested_resource_types, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
      RETURNING *`,
-    [emergencyId, acuityScore, requiredResourceTypes, hospitalId]
+    [
+      emergencyId, acuityScore, requiredResourceTypes, hospitalId,
+      clinicalData?.patientId || null,
+      clinicalData?.patientName || "",
+      clinicalData?.symptoms || "",
+      clinicalData?.symptomSeverity || "moderate",
+      JSON.stringify(clinicalData?.vitalSigns || {}),
+      clinicalData?.triageNote || "",
+      clinicalData?.suggestedResourceTypes || [],
+      clinicalData?.createdBy || null,
+    ]
   );
   return rows[0] as Case;
+}
+
+// ── Patient CRUD ──────────────────────────────────────────────
+export async function createPatient(
+  hospitalId: string,
+  data: Omit<Patient, "id" | "hospital_id" | "created_at">
+): Promise<Patient> {
+  const { rows } = await query(
+    `INSERT INTO patients (hospital_id, name, age, gender, blood_type, medical_history, allergies, current_medications)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [hospitalId, data.name, data.age, data.gender, data.blood_type, data.medical_history, data.allergies, data.current_medications]
+  );
+  return rows[0] as Patient;
+}
+
+export async function getPatient(
+  patientId: string,
+  hospitalId: string
+): Promise<Patient | null> {
+  const { rows } = await query(
+    "SELECT * FROM patients WHERE id = $1 AND hospital_id = $2",
+    [patientId, hospitalId]
+  );
+  return rows[0] || null;
+}
+
+export async function listPatients(
+  hospitalId: string,
+  search?: string
+): Promise<Patient[]> {
+  if (search) {
+    const q = `%${search}%`;
+    const { rows } = await query(
+      "SELECT * FROM patients WHERE hospital_id = $1 AND name ILIKE $2 ORDER BY created_at DESC",
+      [hospitalId, q]
+    );
+    return rows as Patient[];
+  }
+  const { rows } = await query(
+    "SELECT * FROM patients WHERE hospital_id = $1 ORDER BY created_at DESC",
+    [hospitalId]
+  );
+  return rows as Patient[];
 }
 
 // ── listResources ─────────────────────────────────────────────
@@ -387,18 +506,34 @@ export async function getRoundDetails(
 export async function getAuditLog(
   page: number,
   limit: number,
-  hospitalId: string
+  hospitalId: string,
+  filters?: { eventType?: string; search?: string }
 ): Promise<{ entries: AuditLogEntry[]; total: number }> {
   const offset = (page - 1) * limit;
 
+  let whereClause = "WHERE hospital_id = $1";
+  const params: unknown[] = [hospitalId];
+  let paramIdx = 2;
+
+  if (filters?.eventType) {
+    whereClause += ` AND event_type = $${paramIdx}`;
+    params.push(filters.eventType);
+    paramIdx++;
+  }
+  if (filters?.search) {
+    whereClause += ` AND (payload::text ILIKE $${paramIdx} OR event_type ILIKE $${paramIdx})`;
+    params.push(`%${filters.search}%`);
+    paramIdx++;
+  }
+
   const [entriesRes, countRes] = await Promise.all([
     query(
-      "SELECT * FROM audit_log WHERE hospital_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
-      [hospitalId, limit, offset]
+      `SELECT * FROM audit_log ${whereClause} ORDER BY created_at DESC LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
+      [...params, limit, offset]
     ),
     query(
-      "SELECT count(*) FROM audit_log WHERE hospital_id = $1",
-      [hospitalId]
+      `SELECT count(*) FROM audit_log ${whereClause}`,
+      params
     ),
   ]);
 
@@ -420,6 +555,17 @@ export async function updateAllocationApproval(
   );
   const alloc = rows[0] as Allocation | undefined;
   if (!alloc) return null;
+
+  // Write audit log
+  const eventType = approvalStatus === "approved" ? "allocation_approved" : "allocation_rejected";
+  const payload = { allocationId, caseId: alloc.case_id, resourceId: alloc.resource_id, action: approvalStatus };
+  const prevHash = await getLastAuditHash(hospitalId);
+  const hash = createHash("sha256").update(JSON.stringify(payload) + (prevHash || "")).digest("hex");
+  await query(
+    `INSERT INTO audit_log (id, hospital_id, event_type, payload, prev_hash, hash, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+    [uuidv4(), hospitalId, eventType, JSON.stringify(payload), prevHash, hash, new Date().toISOString()]
+  );
 
   if (approvalStatus === "rejected") {
     await query(
@@ -449,7 +595,6 @@ export async function updateAllocationApproval(
 }
 
 // ── LLM credential management ────────────────────────────────
-// Gracefully handles missing hospital_llm_credentials table (pre-migration)
 export async function upsertLLMKey(hospitalId: string, provider: LlmProvider, apiKey: string): Promise<void> {
   const encrypted = encryptCredential(apiKey);
   await query(
@@ -496,10 +641,26 @@ export async function getLLMKeys(hospitalId: string): Promise<{ groqKey: string;
       mistralKey: credMap.has("mistral") ? decryptCredential(credMap.get("mistral")) : (process.env.MISTRAL_API_KEY || ""),
     };
   } catch {
-    // Table may not exist yet — fall back to env vars
     return {
       groqKey: process.env.GROQ_API_KEY || "",
       mistralKey: process.env.MISTRAL_API_KEY || "",
     };
   }
+}
+
+// ── approveCase / rejectCase ────────────────────────────────
+export async function approveCase(caseId: string, hospitalId: string): Promise<Case | null> {
+  const { rows } = await query(
+    "UPDATE cases SET status = 'approved' WHERE id = $1 AND hospital_id = $2 AND status = 'pending' RETURNING *",
+    [caseId, hospitalId]
+  );
+  return rows[0] as Case | null;
+}
+
+export async function rejectCase(caseId: string, hospitalId: string): Promise<Case | null> {
+  const { rows } = await query(
+    "UPDATE cases SET status = 'rejected' WHERE id = $1 AND hospital_id = $2 AND status = 'pending' RETURNING *",
+    [caseId, hospitalId]
+  );
+  return rows[0] as Case | null;
 }
