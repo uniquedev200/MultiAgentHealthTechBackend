@@ -61,14 +61,31 @@ cp .env.example .env
 
 npm run dev          # Starts on http://localhost:3000
 ```
+## Demo Credentials & Access Roles
 
-The server automatically seeds a demo hospital:
-- **Email:** `admin@generalhospital.demo`
-- **Password:** `demo1234`
-- **API Key:** `gh-live-key-001`
+To test the multi-hospital isolation and Human-in-the-Loop features without registering a new organization, you can use our pre-seeded demo accounts. 
 
+###  Available Roles
+
+
+
+### Active Credentials
+
+```env
+========================================================================
+1. ADMIN PRIVILEGES (Resource Configuration & Audit Logs)
+========================================================================
+Email:    admin@hospital.demo
+Password: demo1234
+API Key:  gh-live-key-001
+
+========================================================================
+2. DOCTOR PRIVILEGES (Frontline Triage & HITL Approvals)
+========================================================================
+Email:    doctor@hospital.demo
+Password: demo1234
 ---
-
+```
 ## Full Setup (With Supabase)
 
 ### 1. Create a Supabase Project
