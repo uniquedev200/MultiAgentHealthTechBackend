@@ -312,55 +312,79 @@ User adds case via UI or API
 ## Project Structure
 
 ```
-siege/
-├── src/
-│   ├── index.ts                 Express server + route definitions + CORS
-│   ├── types.ts                 Shared TypeScript interfaces
-│   ├── express.d.ts             Express Request augmentation (hospitalId)
-│   ├── db.ts                    PostgreSQL connection pool (pg)
-│   ├── auth.ts                  JWT + API key combined middleware
-│   ├── password.ts              bcrypt hash/compare
-│   ├── hospital.ts              Hospital + API key CRUD
-│   ├── negotiation-engine.ts    AI bidding engine (Groq + Mistral)
-│   ├── scheduler.ts             Debounce, scheduling, mass-loop, in-memory locks
-│   ├── credentials.ts           AES-256-GCM encryption for stored LLM API keys
-│   ├── data/
-│   │   ├── index.ts             Fake↔live switch via DATA_LAYER env
-│   │   ├── types.ts             Re-exports from ../types
-│   │   ├── fake.ts              In-memory data layer (local dev)
-│   │   └── live.ts              PostgreSQL data layer (production)
-│   ├── seed.ts                  Database seed script
-│   └── migrate.ts               Run SQL migrations against Supabase
+MultiAgentHealthTech/
+├── src/                                 # Express Backend (TypeScript 5.9 + Node 24)
+│   ├── index.ts                         # Application entrypoint and main server routing
+│   ├── auth.ts                          # Authentication logic, middleware, and JWT validation
+│   ├── db.ts                            # Supabase database client initialization
+│   ├── types.ts                         # Common type definitions for the backend
+│   ├── express.d.ts                     # Express namespace extensions for custom types
+│   ├── password.ts                      # Utilities for hashing and comparing passwords
+│   ├── credentials.ts                   # Secure handling of AI/LLM API credentials (AES-256-GCM)
+│   ├── migrate.ts                       # Script to run SQL migrations programmatically
+│   ├── seed.ts                          # Utilities for seeding initial mock data
+│   ├── scheduler.ts                     # Background schedulers and timers for agents/negotiation
+│   ├── hospital.ts                      # Core logic for hospital and medical resource management
+│   ├── clinical-scoring.ts              # Clinical triage and patient priority score calculation
+│   ├── negotiation-engine.ts            # Logic orchestrating negotiation agents for resource allocation
+│   └── data/                            # Medical Datasets & Simulators
+│       ├── index.ts                     # Entry point exporting mock and live data helpers
+│       ├── types.ts                     # TypeScript types for medical datasets
+│       ├── fake.ts                      # Generator for synthetic medical data (patients, resources)
+│       └── live.ts                      # Real-time active data generator and simulators
 │
-├── frontend/
-│   ├── src/
-│   │   ├── api.ts               API client with SSE streaming
-│   │   ├── App.tsx              Route config with protected routes
-│   │   ├── contexts/
-│   │   │   └── AuthContext.tsx   Auth state with localStorage persistence
-│   │   ├── components/
-│   │   │   └── Layout.tsx       Sidebar navigation layout
-│   │   ├── pages/
-│   │   │   ├── Login.tsx        Login / register with demo credentials
-│   │   │   ├── Dashboard.tsx    Resource stats, quick actions, audit feed
-│   │   │   ├── Emergencies.tsx  List emergencies + declare new
-│   │   │   ├── EmergencyDetail.tsx  Full emergency operations (SSE, cases, HITL)
-│   │   │   ├── Resources.tsx    Resource management with status override
-│   │   │   ├── AuditLog.tsx     Paginated audit trail
-│   │   │   └── Settings.tsx     BYOK LLM key management
-│   │   └── types.ts             Frontend type definitions
-│   ├── vite.config.ts           Vite config with API proxy
-│   └── tailwind.config.js       Tailwind CSS configuration
+├── frontend/                            # Client Dashboard User Interface (Vite + React 19 + Tailwind)
+│   ├── index.html                       # Application index page wrapper
+│   ├── package.json                     # Frontend dependencies and build tasks
+│   ├── vite.config.ts                   # Vite configuration
+│   ├── tsconfig.json                    # TypeScript settings for Vite & React
+│   ├── tailwind.config.js               # Tailwind CSS setup
+│   ├── postcss.config.js                # PostCSS build configuration
+│   └── src/                             # React Client Code
+│       ├── main.tsx                     # React DOM bootstrap entrypoint
+│       ├── App.tsx                      # Main React application routing and setup
+│       ├── api.ts                       # Client HTTP services wrapping the REST APIs (with SSE)
+│       ├── types.ts                     # Frontend application type definitions
+│       ├── index.css                    # Global stylesheets and styles config
+│       ├── vite-env.d.ts                # TypeScript types for Vite
+│       ├── components/                  # UI Reusables
+│       │   ├── Layout.tsx               # Main dashboard page container, sidebar, and headers
+│       │   ├── Prism.tsx                # Code syntax highlighting component for logs/payloads
+│       │   └── Prism.css                # Styling rules for the Prism syntax highlighter
+│       ├── contexts/                    # State Contexts
+│       │   ├── AuthContext.tsx          # Auth wrapper providing logged-in user context
+│       │   └── ToastContext.tsx         # Context delivering interactive alert banners
+│       └── pages/                       # React Views
+│           ├── Landing.tsx              # Core landing home page
+│           ├── Login.tsx                # Application authentication entry page (with role selectors)
+│           ├── Dashboard.tsx            # Overview dashboard showing key metrics and charts
+│           ├── Emergencies.tsx          # List/table of active and resolved emergencies
+│           ├── EmergencyDetail.tsx      # Detailed emergency timeline, agent negotiations, and HITL actions
+│           ├── Resources.tsx            # Local inventory viewer for hospital resources
+│           ├── Settings.tsx             # Settings panel for configuring attributes, keys, and simulators
+│           └── AuditLog.tsx             # Table tracking actions and cryptographic hash chains
 │
-├── supabase/
-│   └── all-migrations.sql       Combined migration (run once in Supabase SQL Editor)
+├── supabase/                            # Database Relational Infrastructure & Migrations
+│   ├── schema.sql                       # Initial database schema structure (tables, roles, constraints)
+│   ├── all-migrations.sql               # Consolidated batch script for all schema migrations
+│   ├── migration-auth-columns.sql       # Schema additions for authentication fields
+│   ├── migration-hospital-scoping.sql   # Migration for resource scaling and scoping
+│   └── migration-llm-credentials.sql    # Database additions for encrypted API credentials table
 │
-├── test-full.js                 Full backend test suite (46 tests)
-├── test-api.js                  Quick API endpoint smoke tests
-├── API.md                       Detailed API documentation
-├── render.yaml                  Render deployment blueprint
-├── .env.example                 Environment variable template
-└── package.json                 Build scripts + dependencies
+├── scripts/                             # Maintenance, Data Repair, & Seeding Utilities
+│   ├── run-migration.ts                 # TypeScript entrypoint executing SQL schema updates
+│   ├── seed-users.js                    # Seed script for basic test accounts
+│   ├── seed-rbac-users.js               # Seed script for Role-Based Access Control (Admin/Doctor)
+│   ├── seed-demo-data.js                # Seed script with complete mock emergencies and beds
+│   ├── fix-case-status.js               # Bug fix helper repairing inconsistent case statuses
+│   ├── verify-schema.js                 # System validation checking tables match backend types
+│   └── [helpers]                        # Miscellaneous testing, health, and state checks
+│
+├── test-full.js                         # Comprehensive end-to-end testing suite (46 regression tests)
+├── test-api.js                          # High-speed smoke-testing suite checking health and tokens
+├── test-frontend.html                   # HTML testing dashboard for rapid frontend validation
+├── API.md                               # Comprehensive markdown-formatted micro-service routing maps
+└── render.yaml                          # Infrastructure-as-code blueprint for Render deployment
 ```
 
 ---
