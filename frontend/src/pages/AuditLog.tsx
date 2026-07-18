@@ -13,21 +13,21 @@ const EVENT_TYPES = [
 ];
 
 const EVENT_COLORS: Record<string, string> = {
-  round_saved: "bg-blue-100 text-blue-700",
-  emergency_declared: "bg-red-100 text-red-700",
-  emergency_resolved: "bg-emerald-100 text-emerald-700",
-  case_added: "bg-amber-100 text-amber-700",
-  allocation_approved: "bg-emerald-100 text-emerald-700",
-  allocation_rejected: "bg-red-100 text-red-700",
+  round_saved: "bg-blue-500/10 text-blue-300 border border-blue-500/20",
+  emergency_declared: "bg-red-500/10 text-red-300 border border-red-500/20",
+  emergency_resolved: "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20",
+  case_added: "bg-amber-500/10 text-amber-300 border border-amber-500/20",
+  allocation_approved: "bg-emerald-500/10 text-emerald-300 border border-emerald-500/20",
+  allocation_rejected: "bg-red-500/10 text-red-300 border border-red-500/20",
 };
 
-const EVENT_ICONS: Record<string, string> = {
-  round_saved: "🤖",
-  emergency_declared: "🚨",
-  emergency_resolved: "✅",
-  case_added: "📋",
-  allocation_approved: "👍",
-  allocation_rejected: "👎",
+const EVENT_DOTS: Record<string, string> = {
+  round_saved: "bg-blue-500 shadow-sm shadow-blue-500/50",
+  emergency_declared: "bg-red-500 shadow-sm shadow-red-500/50",
+  emergency_resolved: "bg-emerald-500 shadow-sm shadow-emerald-500/50",
+  case_added: "bg-amber-500 shadow-sm shadow-amber-500/50",
+  allocation_approved: "bg-emerald-500 shadow-sm shadow-emerald-500/50",
+  allocation_rejected: "bg-red-500 shadow-sm shadow-red-500/50",
 };
 
 export default function AuditLogPage() {
@@ -109,43 +109,43 @@ export default function AuditLogPage() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Audit Log</h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <h1 className="text-2xl font-bold text-white">Audit Log</h1>
+        <p className="text-sm text-gray-400 mt-1">
           Append-only, tamper-evident event trail · {total} total entries
         </p>
       </div>
 
       {/* Filters */}
-      <div className="card mb-6">
+      <div className="glass-card-no-hover p-6 mb-6">
         <div className="flex flex-wrap gap-4">
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Search</label>
+            <label className="block text-xs font-medium text-gray-400 mb-1">Search</label>
             <input
               type="text"
-              className="input"
+              className="glass-input w-full"
               placeholder="Search audit entries..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             />
           </div>
           <div className="w-48">
-            <label className="block text-xs font-medium text-gray-500 mb-1">Event Type</label>
+            <label className="block text-xs font-medium text-gray-400 mb-1">Event Type</label>
             <select
-              className="input"
+              className="glass-input w-full"
               value={eventType}
               onChange={(e) => { setEventType(e.target.value); setPage(1); }}
             >
               {EVENT_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>{t.label}</option>
+                <option key={t.value} value={t.value} className="bg-[#0c0f17] text-white">{t.label}</option>
               ))}
             </select>
           </div>
         </div>
       </div>
 
-      <div className="card">
+      <div className="glass-card-no-hover p-6">
         {loading ? (
-          <div className="flex items-center justify-center h-32 text-gray-400">Loading...</div>
+          <div className="flex items-center justify-center h-32 text-gray-500">Loading...</div>
         ) : entries.length === 0 ? (
           <p className="text-sm text-gray-500">No audit entries {search || eventType ? "match your filters" : "yet"}.</p>
         ) : (
@@ -153,32 +153,30 @@ export default function AuditLogPage() {
             {entries.map((entry) => (
               <div
                 key={entry.id}
-                className="border border-gray-100 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                className="border border-white/5 bg-white/[0.01] rounded-lg p-4 hover:bg-white/[0.03] transition-all duration-200"
               >
                 <div className="flex items-start gap-3">
-                  <span className="text-lg mt-0.5">
-                    {EVENT_ICONS[entry.event_type] || "📝"}
-                  </span>
+                  <span className={`w-2.5 h-2.5 rounded-full mt-1.5 flex-shrink-0 ${EVENT_DOTS[entry.event_type] || "bg-gray-500"}`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${EVENT_COLORS[entry.event_type] || "bg-gray-100 text-gray-600"}`}>
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium border ${EVENT_COLORS[entry.event_type] || "bg-gray-500/10 text-gray-400 border-gray-500/20"}`}>
                         {entry.event_type.replace(/_/g, " ")}
                       </span>
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-500">
                         {new Date(entry.created_at).toLocaleString()}
                       </span>
                     </div>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-white">
                       {getHumanDescription(entry)}
                     </p>
                     {getDetailText(entry) && (
-                      <p className="text-xs text-gray-500 mt-1">
+                      <p className="text-xs text-gray-400 mt-1">
                         {getDetailText(entry)}
                       </p>
                     )}
                   </div>
                   <div className="flex-shrink-0">
-                    <span className="text-[10px] text-gray-300 font-mono" title={`Full hash: ${entry.hash}`}>
+                    <span className="text-[10px] text-emerald-400/60 font-mono" title={`Full hash: ${entry.hash}`}>
                       {entry.hash.slice(0, 8)}...
                     </span>
                   </div>
@@ -189,7 +187,7 @@ export default function AuditLogPage() {
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-between mt-4 pt-4 border-t border-white/5">
             <p className="text-sm text-gray-500">
               Page {page} of {totalPages}
             </p>
@@ -197,14 +195,14 @@ export default function AuditLogPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="btn-secondary text-xs"
+                className="glass-btn-secondary text-xs"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="btn-secondary text-xs"
+                className="glass-btn-secondary text-xs"
               >
                 Next
               </button>

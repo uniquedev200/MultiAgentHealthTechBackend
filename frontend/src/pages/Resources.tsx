@@ -76,22 +76,31 @@ export default function ResourcesPage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Resources</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage hospital resource availability</p>
+          <h1 className="text-2xl font-bold text-white">Resources</h1>
+          <p className="text-sm text-gray-400 mt-1">Manage hospital resource availability</p>
         </div>
         <button
           onClick={handleReset}
           disabled={resetting}
-          className="text-sm px-4 py-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors font-medium disabled:opacity-50"
+          className="glass-btn-secondary bg-amber-500/10 border-amber-500/20 text-amber-300 hover:bg-amber-500/20 disabled:opacity-50 flex items-center gap-1.5"
         >
-          {resetting ? "Resetting..." : "♻ Reset All to Available"}
+          {resetting ? (
+            <span>Resetting...</span>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 7.89H18v3.51" />
+              </svg>
+              <span>Reset All to Available</span>
+            </>
+          )}
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          {error}
-          <button onClick={() => setError("")} className="ml-2 font-bold">✕</button>
+        <div className="mb-4 rounded-lg bg-red-950/20 border border-red-500/30 px-4 py-3 text-sm text-red-300 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError("")} className="ml-2 font-bold hover:text-white transition-colors">✕</button>
         </div>
       )}
 
@@ -100,17 +109,17 @@ export default function ResourcesPage() {
         {STATUSES.map((s) => (
           <div key={s} className="flex items-center gap-2">
             <div
-              className={`w-3 h-3 rounded-full ${
+              className={`w-2.5 h-2.5 rounded-full ${
                 s === "available"
-                  ? "bg-emerald-500"
+                  ? "bg-emerald-500 shadow-sm shadow-emerald-500/50"
                   : s === "occupied"
-                  ? "bg-red-500"
+                  ? "bg-red-500 shadow-sm shadow-red-500/50"
                   : s === "reserved"
-                  ? "bg-amber-500"
-                  : "bg-gray-400"
+                  ? "bg-amber-500 shadow-sm shadow-amber-500/50"
+                  : "bg-gray-600"
               }`}
             />
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-gray-400">
               {s}: {resources.filter((r) => r.status === s).length}
             </span>
           </div>
@@ -119,52 +128,52 @@ export default function ResourcesPage() {
 
       <div className="space-y-6">
         {Object.entries(grouped).map(([type, items]) => (
-          <div key={type} className="card">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <div key={type} className="glass-card-no-hover p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">
               {typeLabels[type] || type} ({items.length})
             </h2>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <tr className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b border-white/5">
                     <th className="pb-3 pr-4">Label</th>
                     <th className="pb-3 pr-4">Department</th>
                     <th className="pb-3 pr-4">Status</th>
                     <th className="pb-3">Action</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-white/5">
                   {items.map((r) => (
-                    <tr key={r.id}>
-                      <td className="py-3 pr-4">
-                        <span className="font-medium text-gray-900">{r.label}</span>
-                        <span className="block text-xs text-gray-400 font-mono">{r.id.slice(0, 12)}…</span>
+                    <tr key={r.id} className="hover:bg-white/[0.01] transition-colors duration-150">
+                      <td className="py-3.5 pr-4">
+                        <span className="font-medium text-white">{r.label}</span>
+                        <span className="block text-xs text-gray-500 font-mono mt-0.5">{r.id.slice(0, 12)}…</span>
                       </td>
-                      <td className="py-3 pr-4 text-gray-600">{r.department}</td>
-                      <td className="py-3 pr-4">
+                      <td className="py-3.5 pr-4 text-gray-400">{r.department}</td>
+                      <td className="py-3.5 pr-4">
                         <span
                           className={`badge ${
                             r.status === "available"
-                              ? "badge-green"
+                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                               : r.status === "occupied"
-                              ? "badge-red"
+                              ? "bg-red-500/20 text-red-400 border border-red-500/30"
                               : r.status === "reserved"
-                              ? "badge-yellow"
-                              : "badge-gray"
+                              ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                              : "bg-gray-500/20 text-gray-400 border border-gray-500/30"
                           }`}
                         >
                           {r.status}
                         </span>
                       </td>
-                      <td className="py-3">
+                      <td className="py-3.5">
                         <select
-                          className="input py-1 px-2 text-xs w-36"
+                          className="glass-input py-1 px-2 text-xs w-36"
                           value={r.status}
                           onChange={(e) => changeStatus(r.id, e.target.value)}
                           disabled={savingId === r.id}
                         >
                           {STATUSES.map((s) => (
-                            <option key={s} value={s}>
+                            <option key={s} value={s} className="bg-[#0c0f17] text-white">
                               {s}
                             </option>
                           ))}

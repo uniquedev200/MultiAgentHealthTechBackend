@@ -21,8 +21,12 @@ export default function App() {
   return (
     <Routes>
       <Route
+        path="/"
+        element={<Navigate to={token ? "/dashboard" : "/login"} replace />}
+      />
+      <Route
         path="/login"
-        element={token ? <Navigate to="/" replace /> : <LoginPage />}
+        element={token ? <Navigate to="/dashboard" replace /> : <LoginPage />}
       />
       <Route
         element={
@@ -31,7 +35,7 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<DashboardPage />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="emergencies" element={<EmergenciesPage />} />
         <Route path="emergencies/:id" element={<EmergencyDetailPage />} />
         <Route path="resources" element={<ResourcesPage />} />

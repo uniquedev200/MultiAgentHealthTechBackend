@@ -383,22 +383,22 @@ export default function EmergencyDetailPage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{emergencyName || "Emergency Operations"}</h1>
-          <p className="text-sm text-gray-500 mt-1 font-mono">{emergencyId}</p>
+          <h1 className="text-2xl font-bold text-white">{emergencyName || "Emergency Operations"}</h1>
+          <p className="text-sm text-gray-400 mt-1 font-mono">{emergencyId}</p>
         </div>
         <div className="flex items-center gap-3">
           <span
-            className={`badge ${connected ? "badge-green" : "badge-gray"}`}
+            className={`badge ${connected ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-gray-500/20 text-gray-400 border border-gray-500/30"}`}
           >
             {connected ? "● Connected" : "○ Disconnected"}
           </span>
           {resolved && (
-            <span className="badge badge-green">Resolved</span>
+            <span className="badge bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Resolved</span>
           )}
           <button
             onClick={handleResolve}
             disabled={resolving || resolved}
-            className="btn-secondary disabled:opacity-50"
+            className="glass-btn-secondary disabled:opacity-50"
           >
             {resolving ? "Resolving..." : resolved ? "Resolved" : "Resolve"}
           </button>
@@ -406,21 +406,21 @@ export default function EmergencyDetailPage() {
       </div>
 
       {error && (
-        <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-          {error}
-          <button onClick={() => setError("")} className="ml-2 font-bold">x</button>
+        <div className="mb-4 rounded-lg bg-red-950/20 border border-red-500/30 px-4 py-3 text-sm text-red-300 flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError("")} className="ml-2 font-bold hover:text-white transition-colors">x</button>
         </div>
       )}
 
       {/* Resolve Confirmation Modal */}
       {showResolveConfirm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Resolve Emergency?</h3>
-            <p className="text-sm text-gray-600 mb-6">This will mark the emergency as resolved and stop all negotiation rounds. Are you sure?</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-card-no-hover bg-[#0c0f17]/95 border border-white/10 p-6 max-w-sm w-full mx-4 shadow-2xl">
+            <h3 className="text-lg font-semibold text-white mb-2">Resolve Emergency?</h3>
+            <p className="text-sm text-gray-400 mb-6">This will mark the emergency as resolved and stop all negotiation rounds. Are you sure?</p>
             <div className="flex gap-3">
-              <button onClick={() => setShowResolveConfirm(false)} className="flex-1 btn-secondary">Cancel</button>
-              <button onClick={confirmResolve} disabled={resolving} className="flex-1 btn-danger">{resolving ? "Resolving..." : "Yes, Resolve"}</button>
+              <button onClick={() => setShowResolveConfirm(false)} className="flex-1 glass-btn-secondary">Cancel</button>
+              <button onClick={confirmResolve} disabled={resolving} className="flex-1 glass-btn-danger">{resolving ? "Resolving..." : "Yes, Resolve"}</button>
             </div>
           </div>
         </div>
@@ -431,21 +431,21 @@ export default function EmergencyDetailPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Add Case Form — Clinical */}
           {hasRole("admin", "department_head", "doctor", "nurse", "triage_officer", "paramedic", "charge_nurse") && (
-            <div className="card">
+            <div className="glass-card-no-hover p-6">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">
+                <h2 className="text-lg font-semibold text-white">
                   {batchMode ? `Batch Submit Cases (${batchQueue.length} queued)` : "Add Patient Case"}
                 </h2>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setBatchMode(!batchMode)}
-                    className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${batchMode ? "bg-brand-100 text-brand-700" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                    className={`text-xs px-3 py-1.5 rounded-full font-medium transition-colors ${batchMode ? "bg-brand-500/20 text-brand-300 border border-brand-500/30" : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"}`}
                   >
                     {batchMode ? "Batch Mode ON" : "Batch Mode"}
                   </button>
                   <button
                     onClick={() => setShowClinicalForm(!showClinicalForm)}
-                    className="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                    className="text-xs text-brand-400 hover:text-brand-300 font-medium transition-colors"
                   >
                     {showClinicalForm ? "Quick Mode" : "Clinical Mode"}
                   </button>
@@ -454,20 +454,20 @@ export default function EmergencyDetailPage() {
 
               {/* Batch Queue Preview */}
               {batchMode && batchQueue.length > 0 && (
-                <div className="mb-4 border border-brand-200 rounded-lg bg-brand-50/50 p-3">
-                  <p className="text-xs font-medium text-brand-700 mb-2">Queued Cases:</p>
+                <div className="mb-4 border border-brand-500/20 rounded-lg bg-brand-500/5 p-3">
+                  <p className="text-xs font-medium text-brand-300 mb-2">Queued Cases:</p>
                   <div className="space-y-1.5">
                     {batchQueue.map((item, i) => (
-                      <div key={i} className="flex items-center justify-between text-xs">
-                        <span className="text-gray-700">{item.patient_name || item.triage_note.split(",")[0] || `Patient ${i + 1}`}</span>
-                        <button onClick={() => setBatchQueue(prev => prev.filter((_, j) => j !== i))} className="text-red-500 hover:text-red-700 font-bold ml-2">x</button>
+                      <div key={i} className="flex items-center justify-between text-xs text-gray-300">
+                        <span>{item.patient_name || item.triage_note.split(",")[0] || `Patient ${i + 1}`}</span>
+                        <button onClick={() => setBatchQueue(prev => prev.filter((_, j) => j !== i))} className="text-red-400 hover:text-red-300 font-bold ml-2">x</button>
                       </div>
                     ))}
                   </div>
                   <button
                     onClick={handleBatchSubmit}
                     disabled={submittingBatch}
-                    className="mt-3 w-full btn-primary text-sm"
+                    className="mt-3 w-full glass-btn-primary text-sm"
                   >
                     {submittingBatch ? "Submitting..." : `Submit All ${batchQueue.length} Cases`}
                   </button>
@@ -479,63 +479,63 @@ export default function EmergencyDetailPage() {
                   {/* Patient Info */}
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Patient Name</label>
-                      <input type="text" className="input" value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="John Doe" />
+                      <label className="block text-xs font-medium text-gray-400 mb-1">Patient Name</label>
+                      <input type="text" className="glass-input w-full" value={patientName} onChange={e => setPatientName(e.target.value)} placeholder="John Doe" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Age</label>
-                      <input type="number" className="input" value={patientAge} onChange={e => setPatientAge(e.target.value)} placeholder="67" min="0" max="150" />
+                      <label className="block text-xs font-medium text-gray-400 mb-1">Age</label>
+                      <input type="number" className="glass-input w-full" value={patientAge} onChange={e => setPatientAge(e.target.value)} placeholder="67" min="0" max="150" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Gender</label>
-                      <select className="input" value={patientGender} onChange={e => setPatientGender(e.target.value)}>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="non-binary">Non-binary</option>
-                        <option value="unknown">Unknown</option>
+                      <label className="block text-xs font-medium text-gray-400 mb-1">Gender</label>
+                      <select className="glass-input w-full" value={patientGender} onChange={e => setPatientGender(e.target.value)}>
+                        <option value="male" className="bg-[#0c0f17] text-white">Male</option>
+                        <option value="female" className="bg-[#0c0f17] text-white">Female</option>
+                        <option value="non-binary" className="bg-[#0c0f17] text-white">Non-binary</option>
+                        <option value="unknown" className="bg-[#0c0f17] text-white">Unknown</option>
                       </select>
                     </div>
                   </div>
 
                   {/* Medical History */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Medical History</label>
-                    <textarea className="input" rows={2} value={medicalHistory} onChange={e => setMedicalHistory(e.target.value)} placeholder="Diabetes Type 2, Hypertension, COPD, Previous MI (2019)" />
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Medical History</label>
+                    <textarea className="glass-input w-full" rows={2} value={medicalHistory} onChange={e => setMedicalHistory(e.target.value)} placeholder="Diabetes Type 2, Hypertension, COPD, Previous MI (2019)" />
                   </div>
 
                   {/* Allergies + Medications */}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Allergies</label>
-                      <input type="text" className="input" value={allergies} onChange={e => setAllergies(e.target.value)} placeholder="Penicillin, Sulfa drugs" />
+                      <label className="block text-xs font-medium text-gray-400 mb-1">Allergies</label>
+                      <input type="text" className="glass-input w-full" value={allergies} onChange={e => setAllergies(e.target.value)} placeholder="Penicillin, Sulfa drugs" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Current Medications</label>
-                      <input type="text" className="input" value={medications} onChange={e => setMedications(e.target.value)} placeholder="Metformin 1000mg, Lisinopril 20mg" />
+                      <label className="block text-xs font-medium text-gray-400 mb-1">Current Medications</label>
+                      <input type="text" className="glass-input w-full" value={medications} onChange={e => setMedications(e.target.value)} placeholder="Metformin 1000mg, Lisinopril 20mg" />
                     </div>
                   </div>
 
                   {/* Symptoms */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Current Symptoms</label>
-                    <textarea className="input" rows={2} value={symptoms} onChange={e => setSymptoms(e.target.value)} placeholder="Chest pain (sharp, left side), Shortness of breath, Diaphoresis, Nausea" />
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Current Symptoms</label>
+                    <textarea className="glass-input w-full" rows={2} value={symptoms} onChange={e => setSymptoms(e.target.value)} placeholder="Chest pain (sharp, left side), Shortness of breath, Diaphoresis, Nausea" />
                   </div>
 
                   {/* Vital Signs */}
                   <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Vital Signs</label>
+                    <label className="block text-xs font-medium text-gray-400 mb-1">Vital Signs</label>
                     <div className="grid grid-cols-4 gap-2">
                       <div>
-                        <input type="number" className="input text-sm" value={vitalHR} onChange={e => setVitalHR(e.target.value)} placeholder="HR: 120" />
+                        <input type="number" className="glass-input w-full text-sm" value={vitalHR} onChange={e => setVitalHR(e.target.value)} placeholder="HR: 120" />
                       </div>
                       <div>
-                        <input type="text" className="input text-sm" value={vitalBP} onChange={e => setVitalBP(e.target.value)} placeholder="BP: 90/60" />
+                        <input type="text" className="glass-input w-full text-sm" value={vitalBP} onChange={e => setVitalBP(e.target.value)} placeholder="BP: 90/60" />
                       </div>
                       <div>
-                        <input type="number" className="input text-sm" value={vitalSpO2} onChange={e => setVitalSpO2(e.target.value)} placeholder="SpO2: 92" min="0" max="100" />
+                        <input type="number" className="glass-input w-full text-sm" value={vitalSpO2} onChange={e => setVitalSpO2(e.target.value)} placeholder="SpO2: 92" min="0" max="100" />
                       </div>
                       <div>
-                        <input type="number" className="input text-sm" value={vitalTemp} onChange={e => setVitalTemp(e.target.value)} placeholder="Temp: 38.5" step="0.1" />
+                        <input type="number" className="glass-input w-full text-sm" value={vitalTemp} onChange={e => setVitalTemp(e.target.value)} placeholder="Temp: 38.5" step="0.1" />
                       </div>
                     </div>
                   </div>
@@ -543,16 +543,16 @@ export default function EmergencyDetailPage() {
                   {/* Triage Note + Required Resources */}
                   <div className="grid grid-cols-3 gap-3">
                     <div className="col-span-2">
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Triage Note</label>
-                      <input type="text" className="input" value={triageNote} onChange={e => setTriageNote(e.target.value)} placeholder="67yo male, acute onset chest pain, arrived via ambulance" />
+                      <label className="block text-xs font-medium text-gray-400 mb-1">Triage Note</label>
+                      <input type="text" className="glass-input w-full" value={triageNote} onChange={e => setTriageNote(e.target.value)} placeholder="67yo male, acute onset chest pain, arrived via ambulance" />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Required Resources</label>
-                      <input type="text" className="input" value={requiredResources} onChange={e => setRequiredResources(e.target.value)} placeholder="icu_bed,staff" />
+                      <label className="block text-xs font-medium text-gray-400 mb-1">Required Resources</label>
+                      <input type="text" className="glass-input w-full" value={requiredResources} onChange={e => setRequiredResources(e.target.value)} placeholder="icu_bed,staff" />
                     </div>
                   </div>
 
-                  <button type="submit" disabled={addingCase} className="btn-primary w-full">
+                  <button type="submit" disabled={addingCase} className="glass-btn-primary w-full">
                     {addingCase ? "Adding..." : batchMode ? "Add to Batch Queue" : "Create Case with Clinical Data"}
                   </button>
                 </form>
@@ -561,18 +561,18 @@ export default function EmergencyDetailPage() {
                 <div className="space-y-3">
                   <div className="flex gap-3">
                     <div className="flex-1">
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Required Resources</label>
-                      <input type="text" className="input" value={requiredResources} onChange={e => setRequiredResources(e.target.value)} placeholder="icu_bed,staff" />
+                      <label className="block text-xs font-medium text-gray-400 mb-1">Required Resources</label>
+                      <input type="text" className="glass-input w-full" value={requiredResources} onChange={e => setRequiredResources(e.target.value)} placeholder="icu_bed,staff" />
                     </div>
                     <div className="flex items-end">
-                      <button onClick={() => { const types = requiredResources.split(",").map(s=>s.trim()).filter(Boolean); api.addCase(emergencyId, types).then(()=>addToast("Case added","success")).catch((e:any)=>setError(e.message)); }} disabled={addingCase} className="btn-primary">+ Add</button>
+                      <button onClick={() => { const types = requiredResources.split(",").map(s=>s.trim()).filter(Boolean); api.addCase(emergencyId, types).then(()=>addToast("Case added","success")).catch((e:any)=>setError(e.message)); }} disabled={addingCase} className="glass-btn-primary">+ Add</button>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Quick presets — realistic clinical scenarios */}
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   onClick={() => quickAdd(
                     ["icu_bed", "staff"],
@@ -581,7 +581,7 @@ export default function EmergencyDetailPage() {
                     68, "History of MI, Diabetes Type 2"
                   )}
                   disabled={addingCase}
-                  className="text-xs px-3 py-1.5 rounded-full bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20 transition-all duration-200 hover:scale-105 active:scale-95"
                 >
                   Chest Pain (68yo, cardiac hx)
                 </button>
@@ -593,7 +593,7 @@ export default function EmergencyDetailPage() {
                     34, ""
                   )}
                   disabled={addingCase}
-                  className="text-xs px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 hover:bg-amber-100 transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-300 hover:bg-amber-500/20 transition-all duration-200 hover:scale-105 active:scale-95"
                 >
                   Abdominal Pain (34yo, fever)
                 </button>
@@ -605,7 +605,7 @@ export default function EmergencyDetailPage() {
                     22, ""
                   )}
                   disabled={addingCase}
-                  className="text-xs px-3 py-1.5 rounded-full bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-full bg-yellow-500/10 border border-yellow-500/20 text-yellow-300 hover:bg-yellow-500/20 transition-all duration-200 hover:scale-105 active:scale-95"
                 >
                   Laceration (22yo, stable)
                 </button>
@@ -617,7 +617,7 @@ export default function EmergencyDetailPage() {
                     19, ""
                   )}
                   disabled={addingCase}
-                  className="text-xs px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-300 hover:bg-blue-500/20 transition-all duration-200 hover:scale-105 active:scale-95"
                 >
                   Sprained Ankle (19yo, normal vitals)
                 </button>
@@ -626,65 +626,65 @@ export default function EmergencyDetailPage() {
           )}
 
           {/* Cases List */}
-          <div className="card">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="glass-card-no-hover p-6">
+            <h2 className="text-lg font-semibold text-white mb-4">
               Cases ({cases.length})
             </h2>
             {cases.length === 0 ? (
               <p className="text-sm text-gray-500">No cases yet. Add one above.</p>
             ) : (
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-white/5">
                 {cases.map((c) => (
                   <div key={c.id} className="py-3">
                     <div
-                      className="flex items-start gap-3 cursor-pointer hover:bg-gray-50 rounded-lg px-2 py-1 -mx-2 transition-colors"
+                      className="flex items-start gap-3 cursor-pointer hover:bg-white/[0.03] hover:translate-x-1 rounded-lg px-2 py-1.5 -mx-2 transition-all duration-200"
                       onClick={() => setExpandedCaseId(expandedCaseId === c.id ? null : c.id)}
                     >
                       <div
-                        className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 ${
+                        className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold flex-shrink-0 border ${
                           c.symptom_severity === "critical"
-                            ? "bg-red-100 text-red-700"
+                            ? "bg-red-500/20 text-red-300 border-red-500/30"
                             : c.symptom_severity === "severe"
-                            ? "bg-amber-100 text-amber-700"
+                            ? "bg-orange-500/20 text-orange-300 border-orange-500/30"
                             : c.symptom_severity === "moderate"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : "bg-blue-100 text-blue-700"
+                            ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30"
+                            : "bg-blue-500/20 text-blue-300 border-blue-500/30"
                         }`}
                       >
                         {c.symptom_severity === "critical" ? "5" : c.symptom_severity === "severe" ? "4" : c.symptom_severity === "moderate" ? "3" : "1"}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-white">
                           {c.patient_name || (c.triage_note ? c.triage_note.split(",")[0] : (c.symptoms || c.required_resource_types.join(", ")))}
                         </p>
                         {c.symptoms && (
-                          <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{c.symptoms}</p>
+                          <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{c.symptoms}</p>
                         )}
                         <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                            c.symptom_severity === "critical" ? "bg-red-100 text-red-600" :
-                            c.symptom_severity === "severe" ? "bg-orange-100 text-orange-600" :
-                            c.symptom_severity === "moderate" ? "bg-yellow-100 text-yellow-600" :
-                            "bg-green-100 text-green-600"
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                            c.symptom_severity === "critical" ? "bg-red-500/20 text-red-300 border-red-500/30" :
+                            c.symptom_severity === "severe" ? "bg-orange-500/20 text-orange-300 border-orange-500/30" :
+                            c.symptom_severity === "moderate" ? "bg-yellow-500/20 text-yellow-300 border-yellow-500/30" :
+                            "bg-green-500/20 text-green-300 border-green-500/30"
                           }`}>{c.symptom_severity}</span>
                           {c.vital_signs && typeof c.vital_signs === "object" && "sp_o2" in (c.vital_signs as any) && (
-                            <span className="text-[10px] text-gray-400">SpO2: {(c.vital_signs as any).sp_o2}%</span>
+                            <span className="text-[10px] text-gray-500">SpO2: {(c.vital_signs as any).sp_o2}%</span>
                           )}
-                          <span className="text-[10px] text-gray-400 font-mono">{c.id.slice(0, 8)}...</span>
+                          <span className="text-[10px] text-gray-500 font-mono">{c.id.slice(0, 8)}...</span>
                           <span className="text-[10px] text-gray-400">{expandedCaseId === c.id ? "▲" : "▼"}</span>
                         </div>
                       </div>
                       <span
                         className={`badge flex-shrink-0 ${
                           c.status === "approved"
-                            ? "badge-green"
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                             : c.status === "allocated"
-                            ? "badge-green"
+                            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                             : c.status === "rejected"
-                            ? "badge-red"
+                            ? "bg-red-500/20 text-red-400 border border-red-500/30"
                             : c.status === "pending"
-                            ? "badge-yellow"
-                            : "badge-gray"
+                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
+                            : "bg-gray-500/20 text-gray-400 border border-gray-500/30"
                         }`}
                       >
                         {c.status}
@@ -693,59 +693,59 @@ export default function EmergencyDetailPage() {
 
                     {/* Expanded case details */}
                     {expandedCaseId === c.id && (
-                      <div className="mt-2 ml-[52px] border-l-2 border-gray-200 pl-4 space-y-2 text-xs text-gray-600">
-                        {c.patient_name && <p><span className="font-medium text-gray-700">Patient:</span> {c.patient_name}</p>}
-                        {c.triage_note && <p><span className="font-medium text-gray-700">Triage:</span> {c.triage_note}</p>}
-                        {c.symptoms && <p><span className="font-medium text-gray-700">Symptoms:</span> {c.symptoms}</p>}
+                      <div className="mt-2 ml-[52px] border-l-2 border-white/10 pl-4 space-y-2 text-xs text-gray-300">
+                        {c.patient_name && <p><span className="font-medium text-gray-400">Patient:</span> {c.patient_name}</p>}
+                        {c.triage_note && <p><span className="font-medium text-gray-400">Triage:</span> {c.triage_note}</p>}
+                        {c.symptoms && <p><span className="font-medium text-gray-400">Symptoms:</span> {c.symptoms}</p>}
                         {c.vital_signs && typeof c.vital_signs === "object" && Object.keys(c.vital_signs).length > 0 && (
                           <p>
-                            <span className="font-medium text-gray-700">Vitals:</span>{" "}
+                            <span className="font-medium text-gray-400">Vitals:</span>{" "}
                             {Object.entries(c.vital_signs as Record<string, unknown>).map(([k, v]) => `${k}=${v}`).join(", ")}
                           </p>
                         )}
                         {c.required_resource_types.length > 0 && (
-                          <p><span className="font-medium text-gray-700">Resources:</span> {c.required_resource_types.join(", ")}</p>
+                          <p><span className="font-medium text-gray-400">Resources:</span> {c.required_resource_types.join(", ")}</p>
                         )}
                         {c.status === "pending" && hasRole("admin", "department_head", "doctor", "triage_officer") && (
-                          <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100">
+                          <div className="flex gap-2 mt-2 pt-2 border-t border-white/5">
                             <button
                               onClick={(e) => { e.stopPropagation(); handleCaseApproval(c.id, "approve"); }}
                               disabled={approvingCaseId === c.id}
-                              className="text-xs px-3 py-1.5 rounded-md bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-medium transition-colors disabled:opacity-50"
+                              className="text-xs px-3 py-1.5 rounded-md bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors font-medium disabled:opacity-50"
                             >
                               {approvingCaseId === c.id ? "..." : "Approve"}
                             </button>
                             <button
                               onClick={(e) => { e.stopPropagation(); handleCaseApproval(c.id, "reject"); }}
                               disabled={approvingCaseId === c.id}
-                              className="text-xs px-3 py-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-200 font-medium transition-colors disabled:opacity-50"
+                              className="text-xs px-3 py-1.5 rounded-md bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30 transition-colors font-medium disabled:opacity-50"
                             >
                               {approvingCaseId === c.id ? "..." : "Reject"}
                             </button>
                           </div>
                         )}
                         {c.status === "approved" && (
-                          <p className="text-emerald-600 font-medium mt-1 pt-2 border-t border-gray-100">Approved</p>
+                          <p className="text-emerald-400 font-medium mt-1 pt-2 border-t border-white/5">Approved</p>
                         )}
                         {c.status === "rejected" && (
-                          <p className="text-red-600 font-medium mt-1 pt-2 border-t border-gray-100">Rejected</p>
+                          <p className="text-red-400 font-medium mt-1 pt-2 border-t border-white/5">Rejected</p>
                         )}
                         {(() => {
                           const caseAlloc = allocations.find(a => a.case_id === c.id && a.approval_status === "pending");
                           if (caseAlloc && hasRole("admin", "department_head")) {
                             return (
-                              <div className="flex gap-2 mt-2 pt-2 border-t border-gray-100">
+                              <div className="flex gap-2 mt-2 pt-2 border-t border-white/5">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleApproval(caseAlloc.id, "approve"); }}
                                   disabled={approvingId === caseAlloc.id}
-                                  className="text-xs px-3 py-1.5 rounded-md bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-medium transition-colors disabled:opacity-50"
+                                  className="text-xs px-3 py-1.5 rounded-md bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors font-medium disabled:opacity-50"
                                 >
                                   {approvingId === caseAlloc.id ? "..." : "Approve Allocation"}
                                 </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleApproval(caseAlloc.id, "reject"); }}
                                   disabled={approvingId === caseAlloc.id}
-                                  className="text-xs px-3 py-1.5 rounded-md bg-red-100 text-red-700 hover:bg-red-200 font-medium transition-colors disabled:opacity-50"
+                                  className="text-xs px-3 py-1.5 rounded-md bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30 transition-colors font-medium disabled:opacity-50"
                                 >
                                   {approvingId === caseAlloc.id ? "..." : "Reject Allocation"}
                                 </button>
@@ -764,19 +764,19 @@ export default function EmergencyDetailPage() {
 
           {/* Rounds History */}
           {rounds.length > 0 && (
-            <div className="card">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+            <div className="glass-card-no-hover p-6">
+              <h2 className="text-lg font-semibold text-white mb-4">
                 Negotiation Rounds ({rounds.length})
               </h2>
               <div className="space-y-4">
                 {rounds.map((round) => (
                   <div
                     key={round.roundId}
-                    className="border border-gray-200 rounded-lg p-4"
+                    className="border border-white/5 bg-white/[0.01] rounded-xl p-4"
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-semibold text-gray-700">
-                        Round <span className="font-mono">{round.roundId.slice(0, 8)}...</span>
+                      <h3 className="text-sm font-semibold text-white">
+                        Round <span className="font-mono text-gray-400">{round.roundId.slice(0, 8)}...</span>
                       </h3>
                       <span className="text-xs text-gray-500">
                         {round.bids.length} bids · {round.allocations.length} allocations
@@ -784,33 +784,33 @@ export default function EmergencyDetailPage() {
                     </div>
 
                     {round.bids.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-xs font-medium text-gray-500 mb-2">AI Resource Agent Bids</p>
+                      <div className="mb-4">
+                        <p className="text-xs font-medium text-gray-400 mb-2">AI Resource Agent Bids</p>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {round.bids
                             .sort((a, b) => Number(b.bid_score) - Number(a.bid_score))
                             .map((bid) => (
                               <div
                                 key={bid.id}
-                                className="text-xs bg-gray-50 rounded-lg px-3 py-2 border border-gray-100"
+                                className="text-xs bg-white/[0.02] rounded-lg px-3 py-2 border border-white/5"
                               >
                                 <div className="flex items-center justify-between">
-                                  <span className="font-mono text-gray-600">
+                                  <span className="font-mono text-gray-400">
                                     {bid.resource_id.slice(0, 8)}...
                                   </span>
                                   <span
                                     className={`font-bold ${
                                       Number(bid.bid_score) >= 0.7
-                                        ? "text-emerald-600"
+                                        ? "text-emerald-400"
                                         : Number(bid.bid_score) >= 0.4
-                                        ? "text-amber-600"
-                                        : "text-red-600"
+                                        ? "text-amber-400"
+                                        : "text-red-400"
                                     }`}
                                   >
                                     {(Number(bid.bid_score) * 100).toFixed(0)}%
                                   </span>
                                 </div>
-                                <p className="text-gray-500 mt-1 line-clamp-2">{bid.reasoning}</p>
+                                <p className="text-gray-400 mt-1 line-clamp-2 leading-relaxed">{bid.reasoning}</p>
                               </div>
                             ))}
                         </div>
@@ -818,8 +818,8 @@ export default function EmergencyDetailPage() {
                     )}
 
                     {round.allocations.length > 0 && (
-                      <div>
-                        <p className="text-xs font-medium text-gray-500 mb-2">Allocations</p>
+                      <div className="mb-4">
+                        <p className="text-xs font-medium text-gray-400 mb-2">Allocations</p>
                         {round.allocations.map((alloc) => (
                           <AllocationRow
                             key={alloc.id}
@@ -833,9 +833,9 @@ export default function EmergencyDetailPage() {
                     )}
 
                     {round.explanation && (
-                      <div className="mt-3 bg-brand-50 border border-brand-100 rounded-lg px-4 py-3">
-                        <p className="text-xs font-medium text-brand-700 mb-1">AI Explanation</p>
-                        <p className="text-sm text-brand-900">{round.explanation}</p>
+                      <div className="mt-3 bg-[#1d6ef1]/5 border border-brand-500/20 rounded-lg px-4 py-3">
+                        <p className="text-xs font-medium text-brand-300 mb-1">AI Explanation</p>
+                        <p className="text-sm text-gray-300 leading-relaxed">{round.explanation}</p>
                       </div>
                     )}
                   </div>
@@ -848,8 +848,8 @@ export default function EmergencyDetailPage() {
         {/* Right column: HITL + SSE + Resources */}
         <div className="space-y-6">
           {pendingAllocations.length > 0 && (
-            <div className="card border-amber-200 bg-amber-50/50">
-              <h2 className="text-lg font-semibold text-amber-900 mb-3">
+            <div className="glass-card-no-hover border-amber-500/20 bg-amber-500/5 p-6">
+              <h2 className="text-lg font-semibold text-amber-300 mb-3">
                 Pending Review ({pendingAllocations.length})
               </h2>
               <div className="space-y-3">
@@ -867,8 +867,8 @@ export default function EmergencyDetailPage() {
           )}
 
           {approvedAllocations.length > 0 && (
-            <div className="card border-emerald-200">
-              <div className="flex items-center gap-2 text-emerald-700">
+            <div className="glass-card-no-hover border-emerald-500/20 bg-emerald-500/5 p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-emerald-400">
                 <span className="text-lg">✅</span>
                 <span className="text-sm font-medium">{approvedAllocations.length} allocation(s) approved</span>
               </div>
@@ -876,16 +876,16 @@ export default function EmergencyDetailPage() {
           )}
 
           {rejectedAllocations.length > 0 && (
-            <div className="card border-red-200">
-              <div className="flex items-center gap-2 text-red-700">
+            <div className="glass-card-no-hover border-red-500/20 bg-red-500/5 p-4 shadow-sm">
+              <div className="flex items-center gap-2 text-red-400">
                 <span className="text-lg">❌</span>
                 <span className="text-sm font-medium">{rejectedAllocations.length} allocation(s) rejected</span>
               </div>
             </div>
           )}
 
-          <div className="card">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">Resources</h2>
+          <div className="glass-card-no-hover p-6">
+            <h2 className="text-lg font-semibold text-white mb-3">Resources</h2>
             {resources.length === 0 ? (
               <p className="text-sm text-gray-500">No resources available.</p>
             ) : (
@@ -893,21 +893,21 @@ export default function EmergencyDetailPage() {
                 {resources.map((r) => (
                   <div
                     key={r.id}
-                    className="flex items-center gap-3 py-2 px-3 rounded-lg bg-gray-50 border border-gray-100"
+                    className="flex items-center gap-3 py-2.5 px-3 rounded-lg bg-white/[0.01] border border-white/5"
                   >
                     <div
-                      className={`w-2 h-2 rounded-full ${
+                      className={`w-2.5 h-2.5 rounded-full ${
                         r.status === "available"
-                          ? "bg-emerald-500"
+                          ? "bg-emerald-500 shadow-sm shadow-emerald-500/50"
                           : r.status === "occupied"
-                          ? "bg-red-500"
+                          ? "bg-red-500 shadow-sm shadow-red-500/50"
                           : r.status === "reserved"
-                          ? "bg-amber-500"
-                          : "bg-gray-400"
+                          ? "bg-amber-500 shadow-sm shadow-amber-500/50"
+                          : "bg-gray-600"
                       }`}
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{r.label}</p>
+                      <p className="text-sm font-medium text-white truncate">{r.label}</p>
                       <p className="text-xs text-gray-500">
                         {r.type} · {r.department}
                       </p>
@@ -915,11 +915,11 @@ export default function EmergencyDetailPage() {
                     <span
                       className={`text-xs font-medium ${
                         r.status === "available"
-                          ? "text-emerald-600"
+                          ? "text-emerald-400"
                           : r.status === "occupied"
-                          ? "text-red-600"
+                          ? "text-red-400"
                           : r.status === "reserved"
-                          ? "text-amber-600"
+                          ? "text-amber-400"
                           : "text-gray-500"
                       }`}
                     >
@@ -931,41 +931,41 @@ export default function EmergencyDetailPage() {
             )}
           </div>
 
-          <div className="card">
-            <h2 className="text-lg font-semibold text-gray-900 mb-3">
-              Live Event Stream
-              <span className={`ml-2 badge ${connected ? "badge-green" : "badge-gray"}`}>
+          <div className="glass-card-no-hover p-6">
+            <h2 className="text-lg font-semibold text-white mb-3 flex items-center justify-between">
+              <span>Live Event Stream</span>
+              <span className={`badge ${connected ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-gray-500/20 text-gray-400 border border-gray-500/30"}`}>
                 {connected ? "Connected" : "Waiting..."}
               </span>
             </h2>
-            <div className="max-h-80 overflow-y-auto space-y-1.5">
+            <div className="max-h-80 overflow-y-auto space-y-2 pr-1">
               {sseEvents.length === 0 ? (
-                <p className="text-sm text-gray-400">Waiting for events...</p>
+                <p className="text-sm text-gray-500">Waiting for events...</p>
               ) : (
                 sseEvents.map((evt) => (
                   <div
                     key={evt.id}
-                    className="text-xs px-3 py-2 rounded-lg bg-gray-50 border border-gray-100"
+                    className="text-xs px-3 py-2.5 rounded-lg bg-white/[0.01] border border-white/5"
                   >
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-400 font-mono">{evt.time}</span>
+                    <div className="flex items-center justify-between gap-2 mb-1">
                       <span
-                        className={`font-semibold ${
+                        className={`font-semibold uppercase tracking-wider text-[10px] ${
                           evt.type === "connected"
-                            ? "text-brand-600"
+                            ? "text-brand-400"
                             : evt.type === "bid_submitted"
-                            ? "text-purple-600"
+                            ? "text-purple-400"
                             : evt.type === "round:completed"
-                            ? "text-emerald-600"
+                            ? "text-emerald-400"
                             : evt.type === "case_added"
-                            ? "text-amber-600"
+                            ? "text-amber-400"
                             : evt.type === "emergency_resolved"
-                            ? "text-red-600"
-                            : "text-gray-700"
+                            ? "text-red-400"
+                            : "text-gray-400"
                         }`}
                       >
                         {evt.type}
                       </span>
+                      <span className="text-[9px] text-gray-500 font-mono">{evt.time}</span>
                     </div>
                     {evt.type === "bid_submitted" && (
                       <BidPreview data={evt.data as Record<string, unknown>} />
@@ -998,15 +998,15 @@ function AllocationRow({
   disabled?: boolean;
 }) {
   const statusColors: Record<AllocationApprovalStatus, string> = {
-    pending: "badge-yellow",
-    approved: "badge-green",
-    rejected: "badge-red",
+    pending: "bg-amber-500/20 text-amber-400 border border-amber-500/30",
+    approved: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
+    rejected: "bg-red-500/20 text-red-400 border border-red-500/30",
   };
 
   return (
-    <div className="flex items-center gap-3 py-2 px-3 rounded-lg bg-white border border-gray-100">
+    <div className="flex items-center gap-3 py-2 px-3 rounded-lg bg-white/[0.02] border border-white/5 mb-2">
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-gray-900">
+        <p className="text-sm text-gray-300">
           <span className="font-mono text-gray-500">{allocation.resource_id.slice(0, 8)}...</span>
           {" -> "}
           <span className="font-mono text-gray-500">{allocation.case_id.slice(0, 8)}...</span>
@@ -1020,14 +1020,14 @@ function AllocationRow({
           <button
             onClick={onApprove}
             disabled={disabled}
-            className="text-xs px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors font-medium disabled:opacity-50"
+            className="text-xs px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition-colors font-medium disabled:opacity-50"
           >
             {disabled ? "..." : "Approve"}
           </button>
           <button
             onClick={onReject}
             disabled={disabled}
-            className="text-xs px-2.5 py-1 rounded-md bg-red-100 text-red-700 hover:bg-red-200 transition-colors font-medium disabled:opacity-50"
+            className="text-xs px-2.5 py-1 rounded-md bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30 transition-colors font-medium disabled:opacity-50"
           >
             {disabled ? "..." : "Reject"}
           </button>
@@ -1039,10 +1039,10 @@ function AllocationRow({
 
 function BidPreview({ data }: { data: Record<string, unknown> }) {
   return (
-    <div className="mt-1 text-gray-600">
-      Resource <span className="font-mono">{String(data.resource_id || "").slice(0, 8)}...</span>{" "}
-      scored <span className="font-bold">{String(data.bid_score)}</span>{" "}
-      for case <span className="font-mono">{String(data.case_id || "").slice(0, 8)}...</span>
+    <div className="mt-1 text-gray-400">
+      Resource <span className="font-mono text-gray-300">{String(data.resource_id || "").slice(0, 8)}...</span>{" "}
+      scored <span className="font-bold text-emerald-400">{String(data.bid_score)}</span>{" "}
+      for case <span className="font-mono text-gray-300">{String(data.case_id || "").slice(0, 8)}...</span>
     </div>
   );
 }
@@ -1051,7 +1051,7 @@ function RoundPreview({ data }: { data: Record<string, unknown> }) {
   const allocs = (data.allocations as unknown[]) || [];
   const explanation = data.explanation ? String(data.explanation) : null;
   return (
-    <div className="mt-1 text-gray-600">
+    <div className="mt-1 text-gray-400">
       {allocs.length} allocation(s) made
       {explanation && (
         <span className="block mt-1 text-gray-500 italic line-clamp-2">

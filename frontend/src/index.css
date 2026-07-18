@@ -5,6 +5,9 @@
 @layer base {
   body {
     @apply min-h-screen;
+    background-color: #07090e;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 0);
+    background-size: 28px 28px;
   }
 }
 
@@ -60,3 +63,111 @@
 .animate-slide-in {
   animation: slide-in 0.25s ease-out;
 }
+
+/* Glassmorphism custom classes */
+.glass-card {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  border-radius: 0.75rem;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glass-card-no-hover {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(12px);
+  border-radius: 0.75rem;
+}
+.glass-card::before, .glass-card-no-hover::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    300px circle at var(--mouse-x, 0) var(--mouse-y, 0),
+    rgba(255, 255, 255, 0.05),
+    transparent 80%
+  );
+  opacity: 0;
+  transition: opacity 0.4s;
+  pointer-events: none;
+  z-index: 1;
+}
+.glass-card:hover::before, .glass-card-no-hover:hover::before {
+  opacity: 1;
+}
+.glass-card > *, .glass-card-no-hover > * {
+  position: relative;
+  z-index: 2;
+}
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px -10px rgba(59, 130, 246, 0.2);
+}
+.glass-input {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f3f4f6;
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  transition: all 0.2s;
+}
+.glass-input:focus {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(29, 110, 241, 0.5);
+  box-shadow: 0 0 0 2px rgba(29, 110, 241, 0.15);
+  outline: none;
+}
+.glass-btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+}
+.glass-btn-primary {
+  @apply glass-btn;
+  background: rgba(29, 110, 241, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+.glass-btn-primary:hover:not(:disabled) {
+  background: rgba(29, 110, 241, 1);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(29, 110, 241, 0.3);
+}
+.glass-btn-secondary {
+  @apply glass-btn;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #e5e7eb;
+}
+.glass-btn-secondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+.glass-btn-danger {
+  @apply glass-btn;
+  background: rgba(220, 38, 38, 0.2);
+  border: 1px solid rgba(220, 38, 38, 0.4);
+  color: #fca5a5;
+}
+.glass-btn-danger:hover:not(:disabled) {
+  background: rgba(220, 38, 38, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+}
+.glass-btn-success {
+  @apply glass-btn;
+  background: rgba(16, 185, 129, 0.2);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #a7f3d0;
+}
+.glass-btn-success:hover:not(:disabled) {
+  background: rgba(16, 185, 129, 0.35);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
